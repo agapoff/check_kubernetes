@@ -1,6 +1,6 @@
 # CHECK_KUBERNETES
 
-Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icinga, Shinken... Whatever.
+Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icinga, Zabbix... Whatever.
 
 ## Dependencies
 
