@@ -9,7 +9,8 @@
 ##########################
 
 usage() {
-    echo "Usage $0 [-m <MODE>|-h] [-o <TIMEOUT>] [-H <APISERVER> [-T <TOKEN>|-t <TOKENFILE>]] [-K <KUBE_CONFIG>] [-N <NAMESPACE>] [-n <NAME>] [-w <WARN>] [-c <CRIT>]"
+    echo "Usage $0 [-m <MODE>|-h] [-o <TIMEOUT>] [-H <APISERVER> [-T <TOKEN>|-t <TOKENFILE>]] [-K <KUBE_CONFIG>]"
+    echo "         [-N <NAMESPACE>] [-n <NAME>] [-w <WARN>] [-c <CRIT>]"
     echo
     echo "Options are:"
     echo "  -m MODE          Which check to perform"
@@ -306,6 +307,7 @@ elif [ $MODE = apiserver ]; then
         exit 0
     else
         echo "CRITICAL. Kuberenetes apiserver health is $data"
+        exit 2
     fi
 fi
 
