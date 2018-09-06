@@ -256,9 +256,9 @@ elif [ $MODE = pods ]; then
     fi
     for ns in ${namespaces[@]}; do
         if [ "$NAME" ]; then
-            pods=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.labels.app=="'$NAME'") | .metadata.name'))
+            pods=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .status.reason!="Evicted" and .metadata.labels.app=="'$NAME'") | .metadata.name'))
         else
-            pods=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'") | .metadata.name'))
+            pods=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .status.reason!="Evicted") | .metadata.name'))
         fi
         for pod in ${pods[@]}; do
             containers=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.name=="'$pod'") | .status.containerStatuses[].name'))
