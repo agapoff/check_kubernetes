@@ -31,6 +31,7 @@ usage() {
     echo "  nodes            Check for active nodes"
     echo "  pods             Check for restart count of containters in the pods"
     echo "  deployments      Check for deployments availability"
+    echo "  daemonsets       Check for daemonsets readiness"
 
     exit 2
 }
@@ -229,6 +230,67 @@ elif [ $MODE = deployments ]; then
             OUTPUT="$OUTPUT not available"
         else
             OUTPUT="$OUTPUT and $((--count_failed)) more are not available"
+        fi
+    fi
+
+elif [ $MODE = daemonsets ]; then
+    count_avail=0
+    count_failed=0
+    if [ "$NAMESPACE" ]; then
+        api_ns="/namespaces/$NAMESPACE"
+        kubectl_ns="--namespace=$NAMESPACE"
+    else
+        kubectl_ns="--all-namespaces"
+    fi
+    data=$(getJSON "get ds $kubectl_ns" "apis/extensions/v1beta1$api_ns/daemonsets/")
+    if [ $? -gt 0 ]; then
+        # Some error occurred during calling API or executing kubectl
+        echo $data
+        exit 2
+    fi
+    #echo $data
+    if [ "$NAME" ]; then
+        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.name=="'$NAME'") | .metadata.namespace' | sort -u))
+    else
+        namespaces=($(echo "$data" | jq -r '.items[].metadata.namespace' | sort -u))
+    fi
+    for ns in ${namespaces[@]}; do
+        if [ "$NAME" ]; then
+            daemonsets=($NAME)
+        else
+            daemonsets=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'") | .metadata.name'))
+        fi
+        for ds in ${daemonsets[@]}; do
+            declare -A statusArr
+            while IFS="=" read -r key value; do
+               statusArr[$key]="$value"
+            done < <(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.name=="'$ds'") | .status | to_entries|map("\(.key)=\(.value)")|.[]')
+            OUTPUT="Daemonset $ns/$ds ${statusArr[numberReady]}/${statusArr[desiredNumberScheduled]} ready"
+            if [ "${statusArr[numberReady]}" != "${statusArr[desiredNumberScheduled]}" ]; then
+                ((count_failed++))
+                EXITCODE=2
+            else
+                ((count_avail++))
+            fi
+        done
+    done
+
+    if [ $EXITCODE = 0 ]; then
+        if [ -z $ns ]; then
+            OUTPUT="No daemonsets found"
+            EXITCODE=2
+        else
+            if [ $count_avail -gt 1 ]; then
+                OUTPUT="OK. $count_avail daemonsets are ready"
+            else
+                OUTPUT="OK. $OUTPUT"
+            fi
+        fi
+    else
+        if [ $count_failed = 1 ]; then
+            OUTPUT="$OUTPUT"
+        else
+            OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
         fi
     fi
 
