@@ -30,15 +30,16 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
       nodes            Check for active nodes
       pods             Check for restart count of containters in the pods
       deployments      Check for deployments availability
+      daemonsets       Check for daemonsets readiness
 
 ## Examples:
 
-Check apuserver health using tokenfile:
+Check apiserver health using tokenfile:
 
     ./check_kubernetes.sh -m apiserver -H https://<...>:6443 -t /path/to/tokenfile
     OK. Kuberenetes apiserver health is OK
 
-Check if all deployments are available using token:
+Check whether all deployments are available using token:
     ./check_kubernetes.sh -m deployments -H https://<...>:6443 -T eYN6...
     OK. 27 deploymens are available
 
@@ -56,6 +57,10 @@ Check pods (by the restarts count):
 
     ./check_kubernetes.sh -m pods -H https://<...>:6443 -N kube-system -w 5
     WARNING. Container kube-system/calico-node-5kc4n/calico-node: 6 restarts. 22 pods ready, 0 pods not ready
+
+Check daemonstets (compare number of desired and number of ready pods)
+    ./check_kubernetes.sh -m daemonsets -K ~/.kube/cluster -N monitoring
+    OK. Daemonset monitoring/node-exporter 5/5 ready
 
 
 ## ServiceAccount and token
@@ -118,6 +123,13 @@ Services:
       import "generic-service"
       check_command = "check-kubernetes"
       vars.kube_mode = "deployments"
+      assign where "k8s-api" in host.vars.roles
+    }
+
+    apply Service "k8s daemonsets" {
+      import "generic-service"
+      check_command = "check-kubernetes"
+      vars.kube_mode = "daemonsets"
       assign where "k8s-api" in host.vars.roles
     }
     
