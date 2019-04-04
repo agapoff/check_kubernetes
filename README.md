@@ -5,6 +5,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 ## Dependencies
 
  * jq
+ * openssl
 
 ## Script usage
 
@@ -20,7 +21,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
       -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used
       -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked
       -o TIMEOUT       Timeout in seconds; default is 15
-      -w WARN          Warning threshold for pod restart count (in pods mode); default is 30
+      -w WARN          Warning threshold for TLS expiration days and for pod restart count (in pods mode); default is 30 for both days and restart count
       -c CRIT          Critical threshold for pod restart count (in pods mode); default is 150
       -h               Show this help and exit
     
@@ -31,6 +32,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
       pods             Check for restart count of containters in the pods
       deployments      Check for deployments availability
       daemonsets       Check for daemonsets readiness
+      tls              Check for tls secrets expiration dates
 
 ## Examples:
 
@@ -62,12 +64,18 @@ Check daemonstets (compare number of desired and number of ready pods)
     ./check_kubernetes.sh -m daemonsets -K ~/.kube/cluster -N monitoring
     OK. Daemonset monitoring/node-exporter 5/5 ready
 
+Check TLS certs
+    ./check_kubernetes.sh -m tls -H https://<...>:6443 -T $TOKEN -N kube-system
+    kube-system/k8s-local-cert is about to expire in 18 days
+
 
 ## ServiceAccount and token
 
 All the needed objects (ServiceAccount, ClusterRole, RoleBinding) can be created with this command:
 
     kubectl apply -f https://raw.githubusercontent.com/agapoff/check_kubernetes/master/account.yaml
+
+You may also prefer to revise and tighten the RBAC role if you're not going to use all modes. For example you may get rid of secrets permission if you have no need to check the TLS certs.
 
 Then in order to get the token just issue this command:
 
@@ -133,6 +141,13 @@ Services:
       assign where "k8s-api" in host.vars.roles
     }
     
+    apply Service "k8s TLS certs" {
+      import "generic-service"
+      check_command = "check-kubernetes"
+      vars.kube_mode = "tls"
+      assign where "k8s-api" in host.vars.roles
+    }
+    
     apply Service "k8s pods" {
       import "generic-service"
       check_command = "check-kubernetes"
@@ -173,7 +188,7 @@ Hosts:
       import "k8s-host"
       address = "<...>"
       vars.roles = [ "k8s-master" ]
-}
+    }
 
 
 ## Licence: GNU GPL v3

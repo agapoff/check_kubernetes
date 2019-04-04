@@ -21,7 +21,7 @@ usage() {
     echo "  -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used"
     echo "  -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked"
     echo "  -o TIMEOUT       Timeout in seconds; default is 15"
-    echo "  -w WARN          Warning threshold for pod restart count (in pods mode); default is 30"
+    echo "  -w WARN          Warning threshold for TLS expiration days and for pod restart count (in pods mode); default is 30"
     echo "  -c CRIT          Critical threshold for pod restart count (in pods mode); default is 150"
     echo "  -h               Show this help and exit"
     echo
@@ -32,6 +32,7 @@ usage() {
     echo "  pods             Check for restart count of containters in the pods"
     echo "  deployments      Check for deployments availability"
     echo "  daemonsets       Check for daemonsets readiness"
+    echo "  tls              Check for tls secrets expiration dates"
 
     exit 2
 }
@@ -61,11 +62,6 @@ else
 fi
 type jq >/dev/null 2>&1 || { echo "CRITICAL: jq is required"; exit 2; }
 TIMEOUT=${TIMEOUT:-15}
-WARN=${WARN:-30}
-CRIT=${CRIT:-150}
-if [ $WARN -gt $CRIT ]; then
-    WARN=$CRIT
-fi
 
 getJSON() {
     kubectl_command=$1
@@ -173,6 +169,72 @@ elif [ $MODE = components ]; then
         fi
     else
         OUTPUT="CRITICAL. Unhealthy: $unhealthy_comps; Healthy: $healthy_comps"
+    fi
+
+elif [ $MODE = tls ]; then
+    WARN=${WARN:-30}
+
+    count_ok=0
+    count_warn=0
+    count_crit=0
+    nowdate=$(date +%s)
+    if [ "$NAMESPACE" ]; then
+        api_ns="/namespaces/$NAMESPACE"
+        kubectl_ns="--namespace=$NAMESPACE"
+    else
+        kubectl_ns="--all-namespaces"
+    fi
+    fulldata=$(getJSON "get secrets $kubectl_ns" "api/v1$api_ns/secrets/")
+    if [ $? -gt 0 ]; then
+        # Some error occurred during calling API or executing kubectl
+        echo $fulldata
+        exit 2
+    fi
+    data=$(echo "$fulldata" | jq -r '.items[] | select (.type=="kubernetes.io/tls")')
+    #echo $data
+    if [ "$NAME" ]; then
+        namespaces=($(echo "$data" | jq -r 'select(.metadata.name=="'$NAME'") | .metadata.namespace' | sort -u))
+    else
+        namespaces=($(echo "$data" | jq -r '.metadata.namespace' | sort -u))
+    fi
+    for ns in ${namespaces[@]}; do
+        if [ "$NAME" ]; then
+            certs=($NAME)
+        else
+            certs=($(echo "$data" | jq -r 'select(.metadata.namespace=="'$ns'") | .metadata.name'))
+        fi
+        for cert in ${certs[@]}; do
+            notafter=$(echo "$data" | jq -r 'select(.metadata.namespace=="'$ns'" and .metadata.name=="'$cert'") | .data."tls.crt"' | base64 -d | openssl x509 -enddate -noout | sed 's/notAfter=//')
+            enddate=$(date -d "$notafter" +%s)
+            diff="$(($enddate-$nowdate))"
+
+            if [ "$diff" -le 0 ]; then
+                ((count_crit++))
+                EXITCODE=2
+                OUTPUT="$OUTPUT $ns/$cert is expired."
+            elif [ "$diff" -le "$((${WARN}*24*3600))" ]; then
+                ((count_warn++))
+                if [ "$EXITCODE" == 0 ]; then
+                    EXITCODE=1
+                fi
+                OUTPUT="$OUTPUT $ns/$cert is about to expire in $((${diff}/3600/24)) days."
+            else
+                ((count_ok++))
+            fi
+        done
+    done
+
+    if [ $EXITCODE = 0 ]; then
+        if [ -z $ns ]; then
+            OUTPUT="No TLS certs found"
+            EXITCODE=2
+        else
+            if [ $count_ok -gt 1 ]; then
+                OUTPUT="OK. $count_ok TLS secrets are OK"
+            else
+                OUTPUT="OK. TLS secret is OK"
+            fi
+        fi
     fi
 
 elif [ $MODE = deployments ]; then
@@ -295,6 +357,12 @@ elif [ $MODE = daemonsets ]; then
     fi
 
 elif [ $MODE = pods ]; then
+    WARN=${WARN:-30}
+    CRIT=${CRIT:-150}
+    if [ $WARN -gt $CRIT ]; then
+        WARN=$CRIT
+    fi
+
     count_ready=0
     count_failed=0
     max_restart_count=0
