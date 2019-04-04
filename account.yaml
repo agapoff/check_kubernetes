@@ -24,6 +24,7 @@ rules:
   - pods
   - nodes
   - componentstatuses
+  - secrets
   verbs:
   - get
   - list
