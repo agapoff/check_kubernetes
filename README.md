@@ -60,11 +60,13 @@ Check pods (by the restarts count):
     ./check_kubernetes.sh -m pods -H https://<...>:6443 -N kube-system -w 5
     WARNING. Container kube-system/calico-node-5kc4n/calico-node: 6 restarts. 22 pods ready, 0 pods not ready
 
-Check daemonstets (compare number of desired and number of ready pods)
+Check daemonstets (compare number of desired and number of ready pods):
+
     ./check_kubernetes.sh -m daemonsets -K ~/.kube/cluster -N monitoring
     OK. Daemonset monitoring/node-exporter 5/5 ready
 
-Check TLS certs
+Check TLS certs:
+
     ./check_kubernetes.sh -m tls -H https://<...>:6443 -T $TOKEN -N kube-system
     kube-system/k8s-local-cert is about to expire in 18 days
 
