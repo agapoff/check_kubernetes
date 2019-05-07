@@ -32,6 +32,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
       pods             Check for restart count of containters in the pods
       deployments      Check for deployments availability
       daemonsets       Check for daemonsets readiness
+      replicasets      Check for replicasets readiness
       tls              Check for tls secrets expiration dates
 
 ## Examples:
@@ -42,6 +43,7 @@ Check apiserver health using tokenfile:
     OK. Kuberenetes apiserver health is OK
 
 Check whether all deployments are available using token:
+
     ./check_kubernetes.sh -m deployments -H https://<...>:6443 -T eYN6...
     OK. 27 deploymens are available
 
