@@ -64,6 +64,11 @@ Check daemonstets (compare number of desired and number of ready pods):
 
     ./check_kubernetes.sh -m daemonsets -K ~/.kube/cluster -N monitoring
     OK. Daemonset monitoring/node-exporter 5/5 ready
+    
+Check replicasets (compare number of desired and number of ready pods):
+
+    ./check_kubernetes.sh -m replicasets -K ~/.kube/cluster -N monitoring
+    OK. Replicaset monitoring/node-exporter 5/5 ready
 
 Check TLS certs:
 
@@ -140,6 +145,13 @@ Services:
       import "generic-service"
       check_command = "check-kubernetes"
       vars.kube_mode = "daemonsets"
+      assign where "k8s-api" in host.vars.roles
+    }
+    
+    apply Service "k8s replicasets" {
+      import "generic-service"
+      check_command = "check-kubernetes"
+      vars.kube_mode = "replicasets"
       assign where "k8s-api" in host.vars.roles
     }
     
