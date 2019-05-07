@@ -32,6 +32,7 @@ usage() {
     echo "  pods             Check for restart count of containters in the pods"
     echo "  deployments      Check for deployments availability"
     echo "  daemonsets       Check for daemonsets readiness"
+    echo "  replicasets      Check for replicasets readiness"
     echo "  tls              Check for tls secrets expiration dates"
 
     exit 2
@@ -439,6 +440,70 @@ elif [ $MODE = apiserver ]; then
         echo "CRITICAL. Kuberenetes apiserver health is $data"
         exit 2
     fi
+
+elif [ $MODE = replicasets ]; then
+    count_avail=0
+    count_failed=0
+    if [ "$NAMESPACE" ]; then
+        api_ns="/namespaces/$NAMESPACE"
+        kubectl_ns="--namespace=$NAMESPACE"
+    else
+        kubectl_ns="--all-namespaces"
+    fi
+    data=$(getJSON "get rs $kubectl_ns" "apis/extensions/v1beta1$api_ns/replicasets/")
+    if [ $? -gt 0 ]; then
+        # Some error occurred during calling API or executing kubectl
+        echo $data
+        exit 2
+    fi
+
+    if [ "$NAME" ]; then
+        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.name=="'$NAME'") | .metadata.namespace' | sort -u))
+    else
+        namespaces=($(echo "$data" | jq -r '.items[].metadata.namespace' | sort -u))
+    fi
+    for ns in ${namespaces[@]}; do
+        if [ "$NAME" ]; then
+            replicasets=($NAME)
+        else
+            replicasets=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'") | .metadata.name'))
+        fi
+        for rs in ${replicasets[@]}; do
+            declare -A statusArr
+            while IFS="=" read -r key value; do
+               statusArr[$key]="$value"
+            done < <(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.name=="'$rs'") | .status | to_entries|map("\(.key)=\(.value)")|.[]')
+            OUTPUT="Replicaset $ns/$rs ${statusArr[readyReplicas]}/${statusArr[availableReplicas]} ready"
+            if [ "${statusArr[readyReplicas]}" != "${statusArr[availableReplicas]}" ]; then
+                ((count_failed++))
+                EXITCODE=2
+            else
+                ((count_avail++))
+            fi
+        done
+    done
+
+    if [ $EXITCODE = 0 ]; then
+        if [ -z $ns ]; then
+            OUTPUT="No replicasets found"
+            EXITCODE=2
+        else
+            if [ $count_avail -gt 1 ]; then
+                OUTPUT="OK. $count_avail replicasets are ready"
+            else
+                OUTPUT="OK. $OUTPUT"
+            fi
+        fi
+    else
+        if [ $count_failed = 1 ]; then
+            OUTPUT="$OUTPUT"
+        else
+            OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
+        fi
+    fi
+
+else
+    usage
 fi
 
 echo $OUTPUT
