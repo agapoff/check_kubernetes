@@ -328,7 +328,9 @@ elif [ $MODE = daemonsets ]; then
             while IFS="=" read -r key value; do
                statusArr[$key]="$value"
             done < <(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.name=="'$ds'") | .status | to_entries|map("\(.key)=\(.value)")|.[]')
-            OUTPUT="Daemonset $ns/$ds ${statusArr[numberReady]}/${statusArr[desiredNumberScheduled]} ready"
+            if [ $EXITCODE == 0 ]; then
+                OUTPUT="Daemonset $ns/$ds ${statusArr[numberReady]}/${statusArr[desiredNumberScheduled]} ready"
+            fi
             if [ "${statusArr[numberReady]}" != "${statusArr[desiredNumberScheduled]}" ]; then
                 ((count_failed++))
                 EXITCODE=2
