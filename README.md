@@ -33,6 +33,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
       deployments      Check for deployments availability
       daemonsets       Check for daemonsets readiness
       replicasets      Check for replicasets readiness
+      statefulsets     Check for statefulsets readiness
       tls              Check for tls secrets expiration dates
 
 ## Examples:
@@ -71,6 +72,11 @@ Check replicasets (compare number of desired and number of ready pods):
 
     ./check_kubernetes.sh -m replicasets -K ~/.kube/cluster -N monitoring
     OK. Replicaset monitoring/node-exporter 5/5 ready
+
+Check statefulsets (compare number of desired and number of ready pods):
+
+    ./check_kubernetes.sh -m statefulsets -K ~/.kube/cluster -N monitoring
+    OK. Statefulset monitoring/node-exporter 5/5 ready
 
 Check TLS certs:
 
