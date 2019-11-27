@@ -90,7 +90,7 @@ All modes support the -b brief option.  In this mode, a single numerical output 
 
 For boolean checks, 1 is returned on success and 0 on error.
 
-For numerical checks, the number is returned on success and zero or a negative number on error.  For example, when used with pods, the number of pods is returned, but minus the number of restarts if it exceeds the warning threshold (so if 3 pods are ok and 1 failed, 3 is returned, but if 4 pods are ok with none failed but 157 restarts with default settings, -150 is returned).  Sometimes positivity suffices, sometimes you need to monitor the exact number.
+For numerical checks, the number is returned on success and zero or a negative number on error.  For example, when used with pods, the number of pods is returned, but minus the number of restarts if it exceeds the warning threshold (so if 3 pods are ok and 1 failed, 3 is returned, but if 4 pods are ok with none failed but 157 restarts with default settings, -157 is returned).  Sometimes positivity suffices, sometimes you need to monitor the exact number.
 
 ## ServiceAccount and token
 
