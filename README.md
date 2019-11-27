@@ -22,7 +22,8 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
       -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked
       -o TIMEOUT       Timeout in seconds; default is 15
       -w WARN          Warning threshold for TLS expiration days and for pod restart count (in pods mode); default is 30 for both days and restart count
-      -c CRIT          Critical threshold for pod restart count (in pods mode); default is 150
+	-c CRIT          Critical threshold for pod restart count (in pods mode); default is 150
+	-b               Brief mode (more suitable for Zabbix)
       -h               Show this help and exit
     
     Modes are:
@@ -83,6 +84,13 @@ Check TLS certs:
     ./check_kubernetes.sh -m tls -H https://<...>:6443 -T $TOKEN -N kube-system
     kube-system/k8s-local-cert is about to expire in 18 days
 
+## Brief mode
+
+All modes support the -b brief option.  In this mode, a single numerical output is returned.  The number is positive on success and zero or negative on error.
+
+For boolean checks, 1 is returned on success and 0 on error.
+
+For numerical checks, the number is returned on success and zero or a negative number on error.  For example, when used with pods, the number of pods is returned, but minus the number of restarts if it exceeds the warning threshold (so if 3 pods are ok and 1 failed, 3 is returned, but if 4 pods are ok with none failed but 157 restarts with default settings, -150 is returned).  Sometimes positivity suffices, sometimes you need to monitor the exact number.
 
 ## ServiceAccount and token
 

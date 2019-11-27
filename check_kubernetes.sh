@@ -23,6 +23,7 @@ usage() {
     echo "  -o TIMEOUT       Timeout in seconds; default is 15"
     echo "  -w WARN          Warning threshold for TLS expiration days and for pod restart count (in pods mode); default is 30"
     echo "  -c CRIT          Critical threshold for pod restart count (in pods mode); default is 150"
+    echo "  -b               Brief mode (more suitable for Zabbix)"
     echo "  -h               Show this help and exit"
     echo
     echo "Modes are:"
@@ -39,7 +40,8 @@ usage() {
     exit 2
 }
 
-while getopts ":m:H:T:t:K:N:n:o:c:w:h" arg; do
+BRIEF=0
+while getopts ":m:H:T:t:K:N:n:o:c:w:bh" arg; do
     case $arg in
         h) usage ;;
         m) MODE="$OPTARG" ;;
@@ -51,7 +53,8 @@ while getopts ":m:H:T:t:K:N:n:o:c:w:h" arg; do
         N) NAMESPACE="$OPTARG" ;;
         n) NAME="$OPTARG" ;;
         w) WARN="$OPTARG" ;;
-        c) CRIT="$OPTARG" ;;
+	  c) CRIT="$OPTARG" ;;
+	  b) BRIEF=1 ;;
         *) usage ;;
     esac
 done
@@ -142,6 +145,15 @@ if [ $MODE = nodes ]; then
             OUTPUT="OK. ${#nodes[@]} nodes are Ready"
         fi
     fi
+    if [ $BRIEF = 1 ]; then
+	    if [ $EXITCODE = 0 ]; then
+		    OUTPUT="${#nodes[@]}"
+	    elif [ $EXITCODE = 2 ]; then
+		    OUTPUT="0"
+	    else
+		    OUTPUT="-1"
+	    fi
+    fi
 
 elif [ $MODE = components ]; then
     healthy_comps=""
@@ -171,6 +183,13 @@ elif [ $MODE = components ]; then
         fi
     else
         OUTPUT="CRITICAL. Unhealthy: $unhealthy_comps; Healthy: $healthy_comps"
+    fi
+    if [ $BRIEF = 1 ]; then
+	    if [ $EXITCODE = 0 ]; then
+		    OUTPUT="$healthy_comps"
+	    else
+		    OUTPUT="0"
+	    fi
     fi
 
 elif [ $MODE = tls ]; then
@@ -238,6 +257,9 @@ elif [ $MODE = tls ]; then
             fi
         fi
     fi
+    if [ $BRIEF = 1 ]; then
+	    OUTPUT="$count_ok"
+    fi
 
 elif [ $MODE = deployments ]; then
     count_avail=0
@@ -295,6 +317,9 @@ elif [ $MODE = deployments ]; then
         else
             OUTPUT="$OUTPUT and $((--count_failed)) more are not available"
         fi
+    fi
+    if [ $BRIEF = 1 ]; then
+	    OUTPUT="$count_avail"
     fi
 
 elif [ $MODE = daemonsets ]; then
@@ -358,6 +383,9 @@ elif [ $MODE = daemonsets ]; then
         else
             OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
         fi
+    fi
+    if [ $BRIEF = 1 ]; then
+	    OUTPUT="$count_avail"
     fi
 
 elif [ $MODE = pods ]; then
@@ -425,6 +453,13 @@ elif [ $MODE = pods ]; then
         fi
         OUTPUT="$OUTPUT$count_ready pods ready, $count_failed pods not ready"
     fi
+    if [ $BRIEF = 1 ]; then
+	    if [ $max_restart_count -ge $WARN ]; then
+		    OUTPUT="-$max_restart_count"
+	    else
+		    OUTPUT="$count_ready"
+	    fi
+    fi
 
 elif [ $MODE = apiserver ]; then
     if [ -z $APISERVER ]; then
@@ -433,15 +468,21 @@ elif [ $MODE = apiserver ]; then
     fi
     data=$(getJSON "" "healthz")
     if [ $? -gt 0 ]; then
-        echo $data
-        exit 2
-    fi
-    if [ "$data" = ok ]; then
-        echo "OK. Kuberenetes apiserver health is OK"
-        exit 0
+        OUTPUT="$data"
+        EXITCODE=2
+    elif [ "$data" = ok ]; then
+        OUTPUT="OK. Kuberenetes apiserver health is OK"
+        EXITCODE=0
     else
-        echo "CRITICAL. Kuberenetes apiserver health is $data"
-        exit 2
+        OUTPUT="CRITICAL. Kuberenetes apiserver health is $data"
+        EXITCODE=2
+    fi
+    if [ $BRIEF = 1 ]; then
+	    if [ $EXITCODE = 0 ]; then
+		    OUTPUT="1"
+	    else
+		    OUTPUT="0"
+	    fi
     fi
 
 elif [ $MODE = replicasets ]; then
@@ -455,9 +496,13 @@ elif [ $MODE = replicasets ]; then
     fi
     data=$(getJSON "get rs $kubectl_ns" "apis/apps/v1$api_ns/replicasets/")
     if [ $? -gt 0 ]; then
-        # Some error occurred during calling API or executing kubectl
-        echo $data
-        exit 2
+	    # Some error occurred during calling API or executing kubectl
+	    if [ $BRIEF = 1 ]; then
+		    echo "-1"
+	    else
+		    echo $data
+	    fi
+	    exit 2
     fi
 
     if [ "$NAME" ]; then
@@ -504,6 +549,9 @@ elif [ $MODE = replicasets ]; then
             OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
         fi
     fi
+    if [ $BRIEF = 1 ]; then
+	    OUTPUT="$count_avail"
+    fi
 
 elif [ $MODE = statefulsets ]; then
     count_avail=0
@@ -516,9 +564,13 @@ elif [ $MODE = statefulsets ]; then
     fi
     data=$(getJSON "get rs $kubectl_ns" "apis/apps/v1$api_ns/statefulsets/")
     if [ $? -gt 0 ]; then
-        # Some error occurred during calling API or executing kubectl
-        echo $data
-        exit 2
+	    # Some error occurred during calling API or executing kubectl
+	    if [ $BRIEF = 1 ]; then
+		    echo "-1"
+	    else
+		    echo $data
+	    fi
+	    exit 2
     fi
 
     if [ "$NAME" ]; then
@@ -564,6 +616,9 @@ elif [ $MODE = statefulsets ]; then
         else
             OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
         fi
+    fi
+    if [ $BRIEF = 1 ]; then
+	    OUTPUT="$count_avail"
     fi
 
 else
