@@ -25,6 +25,7 @@ rules:
       - nodes
       - componentstatuses
       - secrets
+      - persistentvolumes
     verbs:
       - get
       - list
