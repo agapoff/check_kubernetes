@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2181,SC2207
 
 ##########################
 # Perform checks against Kubernetes API or with tab help of kubectl utility
@@ -53,15 +54,15 @@ while getopts ":m:H:T:t:K:N:n:o:c:w:bh" arg; do
         N) NAMESPACE="$OPTARG" ;;
         n) NAME="$OPTARG" ;;
         w) WARN="$OPTARG" ;;
-	  c) CRIT="$OPTARG" ;;
-	  b) BRIEF=1 ;;
+        c) CRIT="$OPTARG" ;;
+        b) BRIEF=1 ;;
         *) usage ;;
     esac
 done
 
-[ -z $MODE ] && usage
+[ -z "$MODE" ] && usage
 if [ "$APISERVER" ]; then
-    [ -z "$TOKEN" -a -z "$TOKENFILE" ] && usage
+    [ -z "$TOKEN" ] && [ -z "$TOKENFILE" ] && usage
 else
     type kubectl >/dev/null 2>&1 || { echo "CRITICAL: kubectl is required as api-server is not defined"; exit 2; }
 fi
@@ -72,17 +73,17 @@ getJSON() {
     kubectl_command=$1
     api_path=$2
     if [ "$APISERVER" ]; then
-        if [ -z $TOKEN ]; then
-            TOKEN=$(cat $TOKENFILE)
+        if [ -z "$TOKEN" ]; then
+            TOKEN="$(cat "$TOKENFILE")"
         fi
-        data=$(timeout $TIMEOUT curl -sk -H "Authorization: Bearer $TOKEN" $APISERVER/$api_path)
+        data=$(timeout "$TIMEOUT" curl -sk -H "Authorization: Bearer $TOKEN" "$APISERVER/$api_path")
         code=$?
         if [ $code = 124 ]; then
             echo "Timed out after $TIMEOUT seconds"
             return 2
         fi
         if [[ "$api_path" =~ healthz ]]; then
-            echo $data
+            echo "$data"
             return
         fi
         kind=$(echo "$data" | jq -r '.kind')
@@ -95,50 +96,49 @@ getJSON() {
             return 2
         fi
     else
-        data=$(timeout $TIMEOUT kubectl $kubectl_command -o json 2>&1)
+        data=$(timeout "$TIMEOUT" kubectl "$kubectl_command" -o json 2>&1)
         code=$?
         if [ $code -gt 0 ]; then
             if [ $code = 124 ]; then
                 echo "Timed out after $TIMEOUT seconds"
             else
-                echo $data | sed 's/^{.*}//'
+                # shellcheck disable=SC2001
+                echo "$data" | sed 's/^{.*}//'
             fi
             return 2
         fi
     fi
-    echo $data
+    echo "$data"
 }
 
 OUTPUT=""
 EXITCODE=0
 
-if [ $MODE = nodes ]; then
-    data=$(getJSON "get nodes" "api/v1/nodes")
+if [ "$MODE" = nodes ]; then
+    data="$(getJSON "get nodes" "api/v1/nodes")"
     if [ $? -gt 0 ]; then
         # Some error occurred during calling API or executing kubectl
-        echo $data
+        echo "$data"
         exit 2
     fi
-    #echo "$data"
     nodes=($(echo "$data" | jq -r '.items[].metadata.name'))
-    for node in ${nodes[@]}; do
-        nodeoutput=""
-        ready=$(echo "$data" | jq -r '.items[] | select(.metadata.name=="'$node'")| .status.conditions[] | select(.type=="Ready") | .status')
+    for node in "${nodes[@]}"; do
+        ready="$(echo "$data" | jq -r '.items[] | select(.metadata.name=="'"$node"'")| .status.conditions[] | select(.type=="Ready") | .status')"
         if [ "$ready" != True ]; then
             EXITCODE=2
                 OUTPUT="${OUTPUT}Node $node not ready. "
         fi
         for condition in OutOfDisk MemoryPressure DiskPressure; do
-            state=$(echo "$data" | jq -r '.items[] | select(.metadata.name=="'$node'") | .status.conditions[] | select(.type=="'$condition'") | .status')
+            state="$(echo "$data" | jq -r '.items[] | select(.metadata.name=="'"$node"'") | .status.conditions[] | select(.type=="'"$condition"'") | .status')"
             if [ "$state" = True ]; then
                 [ $EXITCODE -lt 1 ] && EXITCODE=1
                 OUTPUT="$OUTPUT $node $condition."
             fi
         done
     done
-    
+
     if [ $EXITCODE = 0 ]; then
-        if [ -z $nodes ]; then
+        if [ -z "${nodes[*]}" ]; then
             OUTPUT="No nodes found"
             EXITCODE=2
         else
@@ -146,26 +146,26 @@ if [ $MODE = nodes ]; then
         fi
     fi
     if [ $BRIEF = 1 ]; then
-	    if [ $EXITCODE = 0 ]; then
-		    OUTPUT="${#nodes[@]}"
-	    elif [ $EXITCODE = 2 ]; then
-		    OUTPUT="0"
-	    else
-		    OUTPUT="-1"
-	    fi
+      if [ $EXITCODE = 0 ]; then
+        OUTPUT="${#nodes[@]}"
+      elif [ $EXITCODE = 2 ]; then
+        OUTPUT="0"
+      else
+        OUTPUT="-1"
+      fi
     fi
 
-elif [ $MODE = components ]; then
+elif [ "$MODE" = components ]; then
     healthy_comps=""
     unhealthy_comps=""
-    data=$(getJSON "get cs" "api/v1/componentstatuses")
+    data="$(getJSON "get cs" "api/v1/componentstatuses")"
     if [ $? -gt 0 ]; then
-        echo $data
+        echo "$data"
         exit 2
     fi
     components=($(echo "$data" | jq -r '.items[].metadata.name'))
-    for comp in ${components[@]}; do
-        healthy=$(echo "$data" | jq -r '.items[] | select(.metadata.name=="'$comp'")| .conditions[] | select(.type=="Healthy") | .status')
+    for comp in "${components[@]}"; do
+        healthy=$(echo "$data" | jq -r '.items[] | select(.metadata.name=="'"$comp"'")| .conditions[] | select(.type=="Healthy") | .status')
         if [ "$healthy" != True ]; then
             EXITCODE=2
             unhealthy_comps="$unhealthy_comps $comp"
@@ -173,9 +173,9 @@ elif [ $MODE = components ]; then
             healthy_comps="$healthy_comps $comp"
         fi
     done
-    
+
     if [ $EXITCODE = 0 ]; then
-        if [ -z $components ]; then
+        if [ -z "${components[*]}" ]; then
             OUTPUT="No components found"
             EXITCODE=2
         else
@@ -185,14 +185,14 @@ elif [ $MODE = components ]; then
         OUTPUT="CRITICAL. Unhealthy: $unhealthy_comps; Healthy: $healthy_comps"
     fi
     if [ $BRIEF = 1 ]; then
-	    if [ $EXITCODE = 0 ]; then
-		    OUTPUT="$healthy_comps"
-	    else
-		    OUTPUT="0"
-	    fi
+      if [ $EXITCODE = 0 ]; then
+        OUTPUT="$healthy_comps"
+      else
+        OUTPUT="0"
+      fi
     fi
 
-elif [ $MODE = tls ]; then
+elif [ "$MODE" = tls ]; then
     WARN=${WARN:-30}
 
     count_ok=0
@@ -208,37 +208,36 @@ elif [ $MODE = tls ]; then
     fulldata=$(getJSON "get secrets $kubectl_ns" "api/v1$api_ns/secrets/")
     if [ $? -gt 0 ]; then
         # Some error occurred during calling API or executing kubectl
-        echo $fulldata
+        echo "$fulldata"
         exit 2
     fi
     data=$(echo "$fulldata" | jq -r '.items[] | select (.type=="kubernetes.io/tls")')
-    #echo $data
     if [ "$NAME" ]; then
-        namespaces=($(echo "$data" | jq -r 'select(.metadata.name=="'$NAME'") | .metadata.namespace' | sort -u))
+        namespaces=($(echo "$data" | jq -r 'select(.metadata.name=="'"$NAME"'") | .metadata.namespace' | sort -u))
     else
         namespaces=($(echo "$data" | jq -r '.metadata.namespace' | sort -u))
     fi
-    for ns in ${namespaces[@]}; do
+    for ns in "${namespaces[@]}"; do
         if [ "$NAME" ]; then
-            certs=($NAME)
+            certs=("$NAME")
         else
-            certs=($(echo "$data" | jq -r 'select(.metadata.namespace=="'$ns'") | .metadata.name'))
+            certs=($(echo "$data" | jq -r 'select(.metadata.namespace=="'"$ns"'") | .metadata.name'))
         fi
-        for cert in ${certs[@]}; do
-            notafter=$(echo "$data" | jq -r 'select(.metadata.namespace=="'$ns'" and .metadata.name=="'$cert'") | .data."tls.crt"' | base64 -d | openssl x509 -enddate -noout | sed 's/notAfter=//')
+        for cert in "${certs[@]}"; do
+            notafter=$(echo "$data" | jq -r 'select(.metadata.namespace=="'"$ns"'" and .metadata.name=="'"$cert"'") | .data."tls.crt"' | base64 -d | openssl x509 -enddate -noout | sed 's/notAfter=//')
             enddate=$(date -d "$notafter" +%s)
-            diff="$(($enddate-$nowdate))"
+            diff="$((enddate-nowdate))"
 
             if [ "$diff" -le 0 ]; then
                 ((count_crit++))
                 EXITCODE=2
                 OUTPUT="$OUTPUT $ns/$cert is expired."
-            elif [ "$diff" -le "$((${WARN}*24*3600))" ]; then
+            elif [ "$diff" -le "$((WARN*24*3600))" ]; then
                 ((count_warn++))
                 if [ "$EXITCODE" == 0 ]; then
                     EXITCODE=1
                 fi
-                OUTPUT="$OUTPUT $ns/$cert is about to expire in $((${diff}/3600/24)) days."
+                OUTPUT="$OUTPUT $ns/$cert is about to expire in $((diff/3600/24)) days."
             else
                 ((count_ok++))
             fi
@@ -246,7 +245,7 @@ elif [ $MODE = tls ]; then
     done
 
     if [ $EXITCODE = 0 ]; then
-        if [ -z $ns ]; then
+        if [ -z "$ns" ]; then
             OUTPUT="No TLS certs found"
             EXITCODE=2
         else
@@ -258,10 +257,10 @@ elif [ $MODE = tls ]; then
         fi
     fi
     if [ $BRIEF = 1 ]; then
-	    OUTPUT="$count_ok"
+      OUTPUT="$count_ok"
     fi
 
-elif [ $MODE = deployments ]; then
+elif [ "$MODE" = deployments ]; then
     count_avail=0
     count_failed=0
     if [ "$NAMESPACE" ]; then
@@ -273,23 +272,22 @@ elif [ $MODE = deployments ]; then
     data=$(getJSON "get deployments $kubectl_ns" "apis/apps/v1$api_ns/deployments/")
     if [ $? -gt 0 ]; then
         # Some error occurred during calling API or executing kubectl
-        echo $data
+        echo "$data"
         exit 2
     fi
-    #echo $data
     if [ "$NAME" ]; then
-        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.name=="'$NAME'") | .metadata.namespace' | sort -u))
+        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.name=="'"$NAME"'") | .metadata.namespace' | sort -u))
     else
         namespaces=($(echo "$data" | jq -r '.items[].metadata.namespace' | sort -u))
     fi
-    for ns in ${namespaces[@]}; do
+    for ns in "${namespaces[@]}"; do
         if [ "$NAME" ]; then
-            deps=($NAME)
+            deps=("$NAME")
         else
-            deps=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'") | .metadata.name'))
+            deps=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'") | .metadata.name'))
         fi
-        for dep in ${deps[@]}; do
-            avail=$(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.name=="'$dep'") | .status.conditions[] | select(.type=="Available") | .status')
+        for dep in "${deps[@]}"; do
+            avail="$(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'" and .metadata.name=="'"$dep"'") | .status.conditions[] | select(.type=="Available") | .status')"
             if [ "$avail" != True ]; then
                 ((count_failed++))
                 EXITCODE=2
@@ -301,7 +299,7 @@ elif [ $MODE = deployments ]; then
     done
 
     if [ $EXITCODE = 0 ]; then
-        if [ -z $ns ]; then
+        if [ -z "$ns" ]; then
             OUTPUT="No deployments found"
             EXITCODE=2
         else
@@ -319,10 +317,10 @@ elif [ $MODE = deployments ]; then
         fi
     fi
     if [ $BRIEF = 1 ]; then
-	    OUTPUT="$count_avail"
+      OUTPUT="$count_avail"
     fi
 
-elif [ $MODE = daemonsets ]; then
+elif [ "$MODE" = daemonsets ]; then
     count_avail=0
     count_failed=0
     if [ "$NAMESPACE" ]; then
@@ -334,26 +332,25 @@ elif [ $MODE = daemonsets ]; then
     data=$(getJSON "get ds $kubectl_ns" "apis/apps/v1$api_ns/daemonsets/")
     if [ $? -gt 0 ]; then
         # Some error occurred during calling API or executing kubectl
-        echo $data
+        echo "$data"
         exit 2
     fi
-    #echo $data
     if [ "$NAME" ]; then
-        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.name=="'$NAME'") | .metadata.namespace' | sort -u))
+        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.name=="'"$NAME"'") | .metadata.namespace' | sort -u))
     else
         namespaces=($(echo "$data" | jq -r '.items[].metadata.namespace' | sort -u))
     fi
-    for ns in ${namespaces[@]}; do
+    for ns in "${namespaces[@]}"; do
         if [ "$NAME" ]; then
-            daemonsets=($NAME)
+            daemonsets=("$NAME")
         else
-            daemonsets=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'") | .metadata.name'))
+            daemonsets=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'") | .metadata.name'))
         fi
-        for ds in ${daemonsets[@]}; do
+        for ds in "${daemonsets[@]}"; do
             declare -A statusArr
             while IFS="=" read -r key value; do
                statusArr[$key]="$value"
-            done < <(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.name=="'$ds'") | .status | to_entries|map("\(.key)=\(.value)")|.[]')
+            done < <(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'" and .metadata.name=="'"$ds"'") | .status | to_entries | map("\(.key)=\(.value)") | .[]')
             if [ $EXITCODE == 0 ]; then
                 OUTPUT="Daemonset $ns/$ds ${statusArr[numberReady]}/${statusArr[desiredNumberScheduled]} ready"
             fi
@@ -367,7 +364,7 @@ elif [ $MODE = daemonsets ]; then
     done
 
     if [ $EXITCODE = 0 ]; then
-        if [ -z $ns ]; then
+        if [ -z "$ns" ]; then
             OUTPUT="No daemonsets found"
             EXITCODE=2
         else
@@ -385,13 +382,13 @@ elif [ $MODE = daemonsets ]; then
         fi
     fi
     if [ $BRIEF = 1 ]; then
-	    OUTPUT="$count_avail"
+      OUTPUT="$count_avail"
     fi
 
-elif [ $MODE = pods ]; then
+elif [ "$MODE" = pods ]; then
     WARN=${WARN:-30}
     CRIT=${CRIT:-150}
-    if [ $WARN -gt $CRIT ]; then
+    if [ "$WARN" -gt "$CRIT" ]; then
         WARN=$CRIT
     fi
 
@@ -408,30 +405,30 @@ elif [ $MODE = pods ]; then
     data=$(getJSON "get pods $kubectl_ns" "api/v1$api_ns/pods/")
     if [ $? -gt 0 ]; then
         # Some error occurred during calling API or executing kubectl
-        echo $data
+        echo "$data"
         exit 2
     fi
     if [ "$NAME" ]; then
-        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.labels.app=="'$NAME'") | .metadata.namespace' | sort -u))
+        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.labels.app=="'"$NAME"'") | .metadata.namespace' | sort -u))
     else
         namespaces=($(echo "$data" | jq -r '.items[].metadata.namespace' | sort -u))
     fi
-    for ns in ${namespaces[@]}; do
+    for ns in "${namespaces[@]}"; do
         if [ "$NAME" ]; then
-            pods=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .status.reason!="Evicted" and .metadata.labels.app=="'$NAME'") | .metadata.name'))
+            pods=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'" and .status.reason!="Evicted" and .metadata.labels.app=="'"$NAME"'") | .metadata.name'))
         else
-            pods=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .status.reason!="Evicted") | .metadata.name'))
+            pods=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'" and .status.reason!="Evicted") | .metadata.name'))
         fi
-        for pod in ${pods[@]}; do
-            containers=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.name=="'$pod'") | .status.containerStatuses[].name'))
-            for container in ${containers[@]}; do
-                restart_count=$(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.name=="'$pod'") | .status.containerStatuses[] | select(.name=="'$container'") | .restartCount')
-                if [ $restart_count -gt $max_restart_count ]; then
+        for pod in "${pods[@]}"; do
+            containers=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'" and .metadata.name=="'"$pod"'") | .status.containerStatuses[].name'))
+            for container in "${containers[@]}"; do
+                restart_count=$(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'" and .metadata.name=="'"$pod"'") | .status.containerStatuses[] | select(.name=="'"$container"'") | .restartCount')
+                if [ "$restart_count" -gt "$max_restart_count" ]; then
                     bad_container="$ns/$pod/$container"
                     max_restart_count=$restart_count
                 fi
             done
-            ready=$(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.name=="'$pod'") | .status.conditions[] | select(.type=="Ready") | .status')
+            ready=$(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'" and .metadata.name=="'"$pod"'") | .status.conditions[] | select(.type=="Ready") | .status')
             if [ "$ready" != True ]; then
                 ((count_failed++))
             else
@@ -440,29 +437,29 @@ elif [ $MODE = pods ]; then
         done
     done
 
-    if [ -z $ns ]; then
+    if [ -z "$ns" ]; then
         OUTPUT="No pods found"
         EXITCODE=2
     else
-        if [ $max_restart_count -ge $WARN ]; then
+        if [ "$max_restart_count" -ge "$WARN" ]; then
             OUTPUT="Container $bad_container: $max_restart_count restarts. "
             EXITCODE=1
-            if [ $max_restart_count -ge $CRIT ]; then
+            if [ "$max_restart_count" -ge "$CRIT" ]; then
                 EXITCODE=2
             fi
         fi
         OUTPUT="$OUTPUT$count_ready pods ready, $count_failed pods not ready"
     fi
     if [ $BRIEF = 1 ]; then
-	    if [ $max_restart_count -ge $WARN ]; then
-		    OUTPUT="-$max_restart_count"
-	    else
-		    OUTPUT="$count_ready"
-	    fi
+      if [ "$max_restart_count" -ge "$WARN" ]; then
+        OUTPUT="-$max_restart_count"
+      else
+        OUTPUT="$count_ready"
+      fi
     fi
 
-elif [ $MODE = apiserver ]; then
-    if [ -z $APISERVER ]; then
+elif [ "$MODE" = apiserver ]; then
+    if [ -z "$APISERVER" ]; then
         echo "Apiserver URL should be defined in this mode"
         exit 2
     fi
@@ -478,14 +475,14 @@ elif [ $MODE = apiserver ]; then
         EXITCODE=2
     fi
     if [ $BRIEF = 1 ]; then
-	    if [ $EXITCODE = 0 ]; then
-		    OUTPUT="1"
-	    else
-		    OUTPUT="0"
-	    fi
+      if [ $EXITCODE = 0 ]; then
+        OUTPUT="1"
+      else
+        OUTPUT="0"
+      fi
     fi
 
-elif [ $MODE = replicasets ]; then
+elif [ "$MODE" = replicasets ]; then
     count_avail=0
     count_failed=0
     if [ "$NAMESPACE" ]; then
@@ -496,31 +493,31 @@ elif [ $MODE = replicasets ]; then
     fi
     data=$(getJSON "get rs $kubectl_ns" "apis/apps/v1$api_ns/replicasets/")
     if [ $? -gt 0 ]; then
-	    # Some error occurred during calling API or executing kubectl
-	    if [ $BRIEF = 1 ]; then
-		    echo "-1"
-	    else
-		    echo $data
-	    fi
-	    exit 2
+      # Some error occurred during calling API or executing kubectl
+      if [ $BRIEF = 1 ]; then
+        echo "-1"
+      else
+        echo "$data"
+      fi
+      exit 2
     fi
 
     if [ "$NAME" ]; then
-        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.name=="'$NAME'") | .metadata.namespace' | sort -u))
+        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.name=="'"$NAME"'") | .metadata.namespace' | sort -u))
     else
         namespaces=($(echo "$data" | jq -r '.items[].metadata.namespace' | sort -u))
     fi
-    for ns in ${namespaces[@]}; do
+    for ns in "${namespaces[@]}"; do
         if [ "$NAME" ]; then
-            replicasets=($NAME)
+            replicasets=("$NAME")
         else
-            replicasets=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'") | .metadata.name'))
+            replicasets=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'") | .metadata.name'))
         fi
-        for rs in ${replicasets[@]}; do
+        for rs in "${replicasets[@]}"; do
             declare -A statusArr
             while IFS="=" read -r key value; do
                statusArr[$key]="$value"
-            done < <(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.name=="'$rs'") | .status | to_entries|map("\(.key)=\(.value)")|.[]')
+            done < <(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'" and .metadata.name=="'"$rs"'") | .status | to_entries|map("\(.key)=\(.value)")|.[]')
             OUTPUT="Replicaset $ns/$rs ${statusArr[readyReplicas]}/${statusArr[availableReplicas]} ready"
             if [ "${statusArr[readyReplicas]}" != "${statusArr[availableReplicas]}" ]; then
                 ((count_failed++))
@@ -532,7 +529,7 @@ elif [ $MODE = replicasets ]; then
     done
 
     if [ $EXITCODE = 0 ]; then
-        if [ -z $ns ]; then
+        if [ -z "$ns" ]; then
             OUTPUT="No replicasets found"
             EXITCODE=2
         else
@@ -550,10 +547,10 @@ elif [ $MODE = replicasets ]; then
         fi
     fi
     if [ $BRIEF = 1 ]; then
-	    OUTPUT="$count_avail"
+      OUTPUT="$count_avail"
     fi
 
-elif [ $MODE = statefulsets ]; then
+elif [ "$MODE" = statefulsets ]; then
     count_avail=0
     count_failed=0
     if [ "$NAMESPACE" ]; then
@@ -564,31 +561,31 @@ elif [ $MODE = statefulsets ]; then
     fi
     data=$(getJSON "get rs $kubectl_ns" "apis/apps/v1$api_ns/statefulsets/")
     if [ $? -gt 0 ]; then
-	    # Some error occurred during calling API or executing kubectl
-	    if [ $BRIEF = 1 ]; then
-		    echo "-1"
-	    else
-		    echo $data
-	    fi
-	    exit 2
+      # Some error occurred during calling API or executing kubectl
+      if [ $BRIEF = 1 ]; then
+        echo "-1"
+      else
+        echo "$data"
+      fi
+      exit 2
     fi
 
     if [ "$NAME" ]; then
-        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.name=="'$NAME'") | .metadata.namespace' | sort -u))
+        namespaces=($(echo "$data" | jq -r '.items[] | select(.metadata.name=="'"$NAME"'") | .metadata.namespace' | sort -u))
     else
         namespaces=($(echo "$data" | jq -r '.items[].metadata.namespace' | sort -u))
     fi
-    for ns in ${namespaces[@]}; do
+    for ns in "${namespaces[@]}"; do
         if [ "$NAME" ]; then
-            statefulsets=($NAME)
+            statefulsets=("$NAME")
         else
-            statefulsets=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'") | .metadata.name'))
+            statefulsets=($(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'") | .metadata.name'))
         fi
-        for rs in ${statefulsets[@]}; do
+        for rs in "${statefulsets[@]}"; do
             declare -A statusArr
             while IFS="=" read -r key value; do
                statusArr[$key]="$value"
-            done < <(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'$ns'" and .metadata.name=="'$rs'") | .status | to_entries|map("\(.key)=\(.value)")|.[]')
+            done < <(echo "$data" | jq -r '.items[] | select(.metadata.namespace=="'"$ns"'" and .metadata.name=="'"$rs"'") | .status | to_entries|map("\(.key)=\(.value)")|.[]')
             OUTPUT="Statefulset $ns/$rs ${statusArr[readyReplicas]}/${statusArr[currentReplicas]} ready"
             if [ "${statusArr[readyReplicas]}" != "${statusArr[currentReplicas]}" ]; then
                 ((count_failed++))
@@ -600,7 +597,7 @@ elif [ $MODE = statefulsets ]; then
     done
 
     if [ $EXITCODE = 0 ]; then
-        if [ -z $ns ]; then
+        if [ -z "$ns" ]; then
             OUTPUT="No statefulsets found"
             EXITCODE=2
         else
@@ -618,7 +615,7 @@ elif [ $MODE = statefulsets ]; then
         fi
     fi
     if [ $BRIEF = 1 ]; then
-	    OUTPUT="$count_avail"
+      OUTPUT="$count_avail"
     fi
 
 else
