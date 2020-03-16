@@ -10,33 +10,40 @@
 ##########################
 
 usage() {
-    echo "Usage $0 [-m <MODE>|-h] [-o <TIMEOUT>] [-H <APISERVER> [-T <TOKEN>|-t <TOKENFILE>]] [-K <KUBE_CONFIG>]"
-    echo "         [-N <NAMESPACE>] [-n <NAME>] [-w <WARN>] [-c <CRIT>]"
-    echo
-    echo "Options are:"
-    echo "  -m MODE          Which check to perform"
-    echo "  -H APISERVER     API URL to query, kubectl is used if this option is not set"
-    echo "  -T TOKEN         Authorization token for API"
-    echo "  -t TOKENFILE     Path to file with token in it"
-    echo "  -K KUBE_CONFIG   Path to kube-config file for kubectl utility"
-    echo "  -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used"
-    echo "  -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked"
-    echo "  -o TIMEOUT       Timeout in seconds; default is 15"
-    echo "  -w WARN          Warning threshold for TLS expiration days and for pod restart count (in pods mode); default is 30"
-    echo "  -c CRIT          Critical threshold for pod restart count (in pods mode); default is 150"
-    echo "  -b               Brief mode (more suitable for Zabbix)"
-    echo "  -h               Show this help and exit"
-    echo
-    echo "Modes are:"
-    echo "  apiserver        Not for kubectl, should be used for each apiserver independently"
-    echo "  components       Check for health of k8s components (etcd, controller-manager, scheduler etc.)"
-    echo "  nodes            Check for active nodes"
-    echo "  pods             Check for restart count of containters in the pods"
-    echo "  deployments      Check for deployments availability"
-    echo "  daemonsets       Check for daemonsets readiness"
-    echo "  replicasets      Check for replicasets readiness"
-    echo "  statefulsets     Check for statefulsets readiness"
-    echo "  tls              Check for tls secrets expiration dates"
+    cat <<- EOF
+	Usage $0 [-m <MODE>|-h] [-o <TIMEOUT>] [-H <APISERVER> [-T <TOKEN>|-t <TOKENFILE>]] [-K <KUBE_CONFIG>]
+	         [-N <NAMESPACE>] [-n <NAME>] [-w <WARN>] [-c <CRIT>]
+
+	Options are:
+	  -m MODE          Which check to perform
+	  -H APISERVER     API URL to query, kubectl is used if this option is not set
+	  -T TOKEN         Authorization token for API
+	  -t TOKENFILE     Path to file with token in it
+	  -K KUBE_CONFIG   Path to kube-config file for kubectl utility
+	  -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used
+	  -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked
+	  -o TIMEOUT       Timeout in seconds; default is 15
+	  -w WARN          Warning threshold for
+	                    - TLS expiration days for TLS mode; default is 30
+	                    - Pod restart count in pods mode; default is 30
+	  -c CRIT          Critical threshold for
+	                    - Pod restart count (in pods mode); default is 150
+	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
+	  -b               Brief mode (more suitable for Zabbix)
+	  -h               Show this help and exit
+
+	Modes are:
+	  apiserver        Not for kubectl, should be used for each apiserver independently
+	  components       Check for health of k8s components (etcd, controller-manager, scheduler etc.)
+	  nodes            Check for active nodes
+	  pods             Check for restart count of containters in the pods
+	  deployments      Check for deployments availability
+	  daemonsets       Check for daemonsets readiness
+	  unboundpvs       Check for unbound persistent volumes.
+	  replicasets      Check for replicasets readiness
+	  statefulsets     Check for statefulsets readiness
+	  tls              Check for tls secrets expiration dates
+	EOF
 
     exit 2
 }
@@ -209,6 +216,38 @@ mode_components() {
         fi
     else
         OUTPUT="CRITICAL. Unhealthy: $unhealthy_comps; Healthy: $healthy_comps"
+    fi
+}
+
+mode_unboundpvs() {
+    CRIT=${CRIT:-5}
+    data=$(getJSON "get pvs" "api/v1/persistentvolumes")
+    [ $? -gt 0 ] && die "$data"
+    declare -A pvsArr unboundPvsArr
+    while IFS="=" read -r key value; do
+        pvsArr[$key]="$value"
+    done < <(echo "$data" | jq -r ".items[] | \"\(.metadata.name)=\(.status.phase)\"")
+
+    while IFS=":" read -r name status claimRef; do
+        OUTPUT="Persistent volume $name is $status (referenced by $claimRef)\n$OUTPUT"
+        unboundPvsArr[$name]="$status:$claimRef"
+    done < <(echo "$data" | \
+             jq -r ".items[] | \
+                     select(.status.phase!=\"Bound\") | \
+                    \"\(.metadata.name):\(.status.phase):\(.spec.claimRef.uid)\"")
+
+    BRIEF_OUTPUT="${#pvsArr[*]}"
+    if [ ${#unboundPvsArr[*]} -gt 0 ]; then
+        BRIEF_OUTPUT="-${#unboundPvsArr[*]}"
+        if [ ${#unboundPvsArr[*]} -ge "$CRIT" ]; then
+            OUTPUT="CRITICAL. Unbound persistentvolumes:\n$OUTPUT"
+            EXITCODE=2
+        else
+            OUTPUT="WARNING. Unbound persistentvolumes:\n$OUTPUT"
+            EXITCODE=1
+        fi
+    else
+        OUTPUT="OK. ${#pvsArr[*]} persistentvolumes correctly bound."
     fi
 }
 
@@ -620,6 +659,7 @@ case "$MODE" in
     (daemonsets) mode_daemonsets ;;
     (deployments) mode_deployments ;;
     (nodes) mode_nodes ;;
+    (unboundpvs) mode_unboundpvs ;;
     (pods) mode_pods ;;
     (replicasets) mode_replicasets ;;
     (statefulsets) mode_statefulsets ;;
