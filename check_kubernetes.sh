@@ -123,7 +123,7 @@ getJSON() {
             fi
         fi
     fi
-    echo "$data"
+    echo "$data" | sed 's/^[[:blank:]]*//' | tr -d '\n'
 }
 
 OUTPUT=""
@@ -346,28 +346,24 @@ mode_pods() {
     fi
 
     for ns in "${namespaces[@]}"; do
+        nsdata="$(echo "$data" | jq -cr ".items[] | select(.metadata.namespace==\"$ns\")")"
         if [ "$NAME" ]; then
-            pods=($(echo "$data" | \
-                    jq -r ".items[] | \
-                            select(.metadata.namespace==\"$ns\" \
-                                   and .status.reason!=\"Evicted\" \
+            pods=($(echo "$nsdata" | \
+                    jq -r "select(.status.reason!=\"Evicted\" \
                                    and .metadata.labels.app==\"$NAME\") | \
                            .metadata.name"))
         else
-            pods=($(echo "$data" | \
-                    jq -r ".items[] | \
-                            select(.metadata.namespace==\"$ns\" and .status.reason!=\"Evicted\") | \
+            pods=($(echo "$nsdata" | \
+                    jq -r "select(.status.reason!=\"Evicted\") | \
                            .metadata.name"))
         fi
         for pod in "${pods[@]}"; do
-            containers=($(echo "$data" | \
-                          jq -r ".items[] | \
-                                  select(.metadata.namespace==\"$ns\" and .metadata.name==\"$pod\") | \
+            containers=($(echo "$nsdata" | \
+                          jq -r "select(.metadata.name==\"$pod\") | \
                                  .status.containerStatuses[].name"))
             for container in "${containers[@]}"; do
-                restart_count=$(echo "$data" | \
-                                jq -r ".items[] | \
-                                        select(.metadata.namespace==\"$ns\" and .metadata.name==\"$pod\") | \
+                restart_count=$(echo "$nsdata" | \
+                                jq -r "select(.metadata.name==\"$pod\") | \
                                        .status.containerStatuses[] | \
                                         select(.name==\"$container\") | \
                                        .restartCount")
@@ -376,9 +372,8 @@ mode_pods() {
                     max_restart_count=$restart_count
                 fi
             done
-            ready=$(echo "$data" | \
-                    jq -r ".items[] | \
-                            select(.metadata.namespace==\"$ns\" and .metadata.name==\"$pod\") | \
+            ready=$(echo "$nsdata" | \
+                    jq -r "select(.metadata.name==\"$pod\") | \
                            .status.conditions[] | \
                             select(.type==\"Ready\") | \
                            .status")
@@ -425,17 +420,16 @@ mode_deployments() {
     fi
 
     for ns in "${namespaces[@]}"; do
+        nsdata="$(echo "$data" | jq -cr ".items[] | select(.metadata.namespace==\"$ns\")")"
         if [ "$NAME" ]; then
             deps=("$NAME")
         else
-            deps=($(echo "$data" | jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
-                                          .metadata.name"))
+            deps=($(echo "$nsdata" | jq -r ".metadata.name"))
         fi
         for dep in "${deps[@]}"; do
-            avail="$(echo "$data" | jq -r ".items[] | \
-                                            select(.metadata.namespace==\"$ns\" and .metadata.name==\"$dep\") | \
-                                           .status.conditions[] | select(.type==\"Available\") | \
-                                           .status")"
+            avail="$(echo "$nsdata" | jq -r "select(.metadata.name==\"$dep\") | \
+                                             .status.conditions[] | select(.type==\"Available\") | \
+                                             .status")"
             if [ "$avail" != True ]; then
                 ((count_failed++))
                 EXITCODE=2
