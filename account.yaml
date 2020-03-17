@@ -18,27 +18,28 @@ metadata:
   name: monitoring
   namespace: monitoring
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - nodes
-  - componentstatuses
-  - secrets
-  verbs:
-  - get
-  - list
-- apiGroups:
-  - extensions
-  - apps
-  resources:
-  - deployments
-  - replicasets
-  - daemonsets
-  - statefulsets
-  verbs:
-  - get
-  - list
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - nodes
+      - componentstatuses
+      - secrets
+      - persistentvolumes
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - extensions
+      - apps
+    resources:
+      - deployments
+      - replicasets
+      - daemonsets
+      - statefulsets
+    verbs:
+      - get
+      - list
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
@@ -50,6 +51,6 @@ roleRef:
   kind: ClusterRole
   name: monitoring
 subjects:
-- kind: ServiceAccount
-  name: monitoring
-  namespace: monitoring
+  - kind: ServiceAccount
+    name: monitoring
+    namespace: monitoring
