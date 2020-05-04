@@ -283,7 +283,7 @@ mode_tls() {
             notafter=$(echo "$data" | \
                        jq -r " select(.metadata.namespace==\"$ns\" and .metadata.name==\"$cert\") | \
                               .data.\"tls.crt\"" | \
-                       base64 -d | \
+                       base64 -d 2>/dev/null | \
                        openssl x509 -enddate -noout | \
                        sed 's/notAfter=//')
             enddate=$(date -d "$notafter" +%s)
