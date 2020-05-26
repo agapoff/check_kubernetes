@@ -328,6 +328,7 @@ mode_pods() {
     fi
 
     count_ready=0
+    count_succeeded=0
     count_failed=0
     max_restart_count=0
     bad_container=""
@@ -372,15 +373,15 @@ mode_pods() {
                     max_restart_count=$restart_count
                 fi
             done
-            ready=$(echo "$nsdata" | \
+            count_status=$(echo "$nsdata" | \
                     jq -r "select(.metadata.name==\"$pod\") | \
-                           .status.conditions[] | \
-                            select(.type==\"Ready\") | \
-                           .status")
-            if [ "$ready" != True ]; then
-                ((count_failed++))
-            else
+                           .status.phase")
+            if [ "$count_status" == "Running" ]; then
                 ((count_ready++))
+            elif [ "$count_status" == "Succeeded" ]; then
+                ((count_succeeded++))
+            else
+                ((count_failed++))                                    
             fi
         done
     done
@@ -402,7 +403,7 @@ mode_pods() {
                 EXITCODE=2
             fi
         fi
-        OUTPUT="$OUTPUT$count_ready pods ready, $count_failed pods not ready"
+        OUTPUT="$OUTPUT$count_ready pods ready, $count_succeeded pods succeeded,  $count_failed pods not ready"
     fi
 }
 
