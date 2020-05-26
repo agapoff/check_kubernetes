@@ -403,7 +403,7 @@ mode_pods() {
                 EXITCODE=2
             fi
         fi
-        OUTPUT="$OUTPUT$count_ready pods ready, $count_succeeded pods succeeded,  $count_failed pods not ready"
+        OUTPUT="$OUTPUT$count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready"
     fi
 }
 
