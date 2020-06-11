@@ -113,7 +113,7 @@ getJSON() {
             die "Could not access API"
         fi
     else
-        data=$(timeout "$TIMEOUT" kubectl "$kubectl_command" -o json 2>&1)
+        data=$(eval timeout "$TIMEOUT" kubectl "$kubectl_command" -o json 2>&1)
         code=$?
         if [ $code -gt 0 ]; then
             if [ $code = 124 ]; then
