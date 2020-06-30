@@ -588,7 +588,7 @@ mode_replicasets() {
 mode_statefulsets() {
     count_avail=0
     count_failed=0
-    data=$(getJSON "get rs $kubectl_ns" "apis/apps/v1$api_ns/statefulsets/")
+    data=$(getJSON "get statefulsets $kubectl_ns" "apis/apps/v1$api_ns/statefulsets/")
     [ $? -gt 0 ] && die "$data"
 
     if [ "$NAME" ]; then
