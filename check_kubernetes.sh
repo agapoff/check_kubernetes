@@ -26,9 +26,11 @@ usage() {
 	  -w WARN          Warning threshold for
 	                    - TLS expiration days for TLS mode; default is 30
 	                    - Pod restart count in pods mode; default is 30
+                        - Job failed count in jobs mode; default is 1
 	  -c CRIT          Critical threshold for
 	                    - Pod restart count (in pods mode); default is 150
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
+                        - Job failed count in jobs mode; default is 2
 	  -b               Brief mode (more suitable for Zabbix)
 	  -h               Show this help and exit
 
@@ -43,6 +45,7 @@ usage() {
 	  replicasets      Check for replicasets readiness
 	  statefulsets     Check for statefulsets readiness
 	  tls              Check for tls secrets expiration dates
+      jobs             Check for failed jobs
 	EOF
 
     exit 2
@@ -648,6 +651,64 @@ mode_statefulsets() {
     fi
 }
 
+mode_jobs() {
+    WARN=${WARN:-1}
+    CRIT=${CRIT:-2}
+
+    declare -i total_failed_count=0
+    declare -i job_fail_count
+    data=$(getJSON "get jobs $kubectl_ns" "apis/apps/v1$api_ns/jobs/")
+    [ $? -gt 0 ] && die "$data"
+
+    if [ "$NAME" ]; then
+        namespaces=($(echo "$data" | \
+                      jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
+                             .metadata.namespace" | \
+                      sort -u))
+    else
+        namespaces=($(echo "$data" | \
+                      jq -r ".items[].metadata.namespace" | \
+                      sort -u))
+    fi
+
+    for ns in "${namespaces[@]}"; do
+        if [ "$NAME" ]; then
+            jobs=("$NAME")
+        else
+            jobs=($(echo "$data" | \
+                            jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
+                                   .metadata.name"))
+        fi
+        for job in "${jobs[@]}"; do
+            job_fail_count=$(echo $data | jq -r ".items[] | select(.status.failed and .metadata.name==\"$job\") | .status.failed")
+            let "total_failed_count= $total_failed_count + $job_fail_count"
+            if [ "$job_fail_count" -ge "${WARN}" ]; then
+                OUTPUT="${OUTPUT}Job $job has $job_fail_count failures. "
+                EXITCODE=1
+            elif [ "$job_fail_count" -ge "${CRIT}" ]; then
+                EXITCODE=2
+            fi
+        done
+            if [ "$total_failed_count" -ge "${WARN}" ]; then
+                EXITCODE=1
+            if [ "$total_failed_count" -ge "${CRIT}" ]; then
+                EXITCODE=2
+            fi
+        fi
+        if [ "$EXITCODE" -eq 1 ] ; then
+            OUTPUT="WARNING. ${OUTPUT}"
+        elif [ "$EXITCODE" -ge 2 ] ; then
+            OUTPUT="CRITICAL. ${OUTPUT}"
+        fi
+        if [ -z "$NAME" ] && [ "$EXITCODE" -ge 1 ] ; then
+            OUTPUT="${OUTPUT}${total_failed_count} jobs in total have failed"
+        fi
+        if [ $EXITCODE -eq 0 ] ; then
+            OUTPUT="OK: ${total_failed_count} failed jobs is below threshold"
+        fi
+    done
+}
+
 case "$MODE" in
     (apiserver) mode_apiserver ;;
     (components) mode_components ;;
@@ -659,6 +720,7 @@ case "$MODE" in
     (replicasets) mode_replicasets ;;
     (statefulsets) mode_statefulsets ;;
     (tls) mode_tls ;;
+    (jobs) mode_jobs ;;
     (*) usage ;;
 esac
 

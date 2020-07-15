@@ -9,34 +9,41 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 
 ## Script usage
 
-    Usage ./check_kubernetes.sh [-m <MODE>|-h] [-o <TIMEOUT>] [-H <APISERVER> [-T <TOKEN>|-t <TOKENFILE>]] [-K <KUBE_CONFIG>]
-             [-N <NAMESPACE>] [-n <NAME>] [-w <WARN>] [-c <CRIT>]
-    
-    Options are:
-      -m MODE          Which check to perform
-      -H APISERVER     API URL to query, kubectl is used if this option is not set
-      -T TOKEN         Authorization token for API
-      -t TOKENFILE     Path to file with token in it
-      -K KUBE_CONFIG   Path to kube-config file for kubectl utility
-      -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used
-      -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked
-      -o TIMEOUT       Timeout in seconds; default is 15
-      -w WARN          Warning threshold for TLS expiration days and for pod restart count (in pods mode); default is 30 for both days and restart count
-   	  -c CRIT          Critical threshold for pod restart count (in pods mode); default is 150
+	Usage $0 [-m <MODE>|-h] [-o <TIMEOUT>] [-H <APISERVER> [-T <TOKEN>|-t <TOKENFILE>]] [-K <KUBE_CONFIG>]
+	         [-N <NAMESPACE>] [-n <NAME>] [-w <WARN>] [-c <CRIT>]
+
+	Options are:
+	  -m MODE          Which check to perform
+	  -H APISERVER     API URL to query, kubectl is used if this option is not set
+	  -T TOKEN         Authorization token for API
+	  -t TOKENFILE     Path to file with token in it
+	  -K KUBE_CONFIG   Path to kube-config file for kubectl utility
+	  -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used
+	  -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked
+	  -o TIMEOUT       Timeout in seconds; default is 15
+	  -w WARN          Warning threshold for
+	                    - TLS expiration days for TLS mode; default is 30
+	                    - Pod restart count in pods mode; default is 30
+                      - Job failed count in jobs mode; default is 1
+	  -c CRIT          Critical threshold for
+	                    - Pod restart count (in pods mode); default is 150
+	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
+                      - Job failed count in jobs mode; default is 2
 	  -b               Brief mode (more suitable for Zabbix)
-      -h               Show this help and exit
-    
-    Modes are:
-      apiserver        Not for kubectl, should be used for each apiserver independently
-      components       Check for health of k8s components (etcd, controller-manager, scheduler etc.)
-      nodes            Check for active nodes
-      pods             Check for restart count of containters in the pods
-      deployments      Check for deployments availability
-      daemonsets       Check for daemonsets readiness
-      unboundpvs       Check for unbound persistent volumes.
-      replicasets      Check for replicasets readiness
-      statefulsets     Check for statefulsets readiness
-      tls              Check for tls secrets expiration dates
+	  -h               Show this help and exit
+
+	Modes are:
+	  apiserver        Not for kubectl, should be used for each apiserver independently
+	  components       Check for health of k8s components (etcd, controller-manager, scheduler etc.)
+	  nodes            Check for active nodes
+	  pods             Check for restart count of containters in the pods
+	  deployments      Check for deployments availability
+	  daemonsets       Check for daemonsets readiness
+	  unboundpvs       Check for unbound persistent volumes.
+	  replicasets      Check for replicasets readiness
+		statefulsets     Check for statefulsets readiness
+		tls              Check for tls secrets expiration dates
+		jobs             Check for failed jobs
 
 ## Examples:
 
@@ -84,6 +91,14 @@ Check TLS certs:
 
     ./check_kubernetes.sh -m tls -H https://<...>:6443 -T $TOKEN -N kube-system
     kube-system/k8s-local-cert is about to expire in 18 days
+
+Check failed jobs with any name:
+    ./check_kubernetes.sh -m jobs
+    CRITICAL. Job bad has 5 failures. Job bad2 has 4 failures. 9 jobs in total have failed
+
+Checked failed jobs named 'good':
+    ./check_kubernetes.sh -m jobs -n good
+    OK: 0 failed jobs is below threshold
 
 ## Brief mode
 
