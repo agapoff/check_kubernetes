@@ -26,11 +26,11 @@ usage() {
 	  -w WARN          Warning threshold for
 	                    - TLS expiration days for TLS mode; default is 30
 	                    - Pod restart count in pods mode; default is 30
-                        - Job failed count in jobs mode; default is 1
+	                    - Job failed count in jobs mode; default is 1
 	  -c CRIT          Critical threshold for
 	                    - Pod restart count (in pods mode); default is 150
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
-                        - Job failed count in jobs mode; default is 2
+	                    - Job failed count in jobs mode; default is 2
 	  -b               Brief mode (more suitable for Zabbix)
 	  -h               Show this help and exit
 

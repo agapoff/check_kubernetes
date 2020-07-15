@@ -24,11 +24,11 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	  -w WARN          Warning threshold for
 	                    - TLS expiration days for TLS mode; default is 30
 	                    - Pod restart count in pods mode; default is 30
-                      - Job failed count in jobs mode; default is 1
+	                    - Job failed count in jobs mode; default is 1
 	  -c CRIT          Critical threshold for
 	                    - Pod restart count (in pods mode); default is 150
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
-                      - Job failed count in jobs mode; default is 2
+	                    - Job failed count in jobs mode; default is 2
 	  -b               Brief mode (more suitable for Zabbix)
 	  -h               Show this help and exit
 
@@ -41,9 +41,9 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	  daemonsets       Check for daemonsets readiness
 	  unboundpvs       Check for unbound persistent volumes.
 	  replicasets      Check for replicasets readiness
-		statefulsets     Check for statefulsets readiness
-		tls              Check for tls secrets expiration dates
-		jobs             Check for failed jobs
+	  statefulsets     Check for statefulsets readiness
+	  tls              Check for tls secrets expiration dates
+	  jobs             Check for failed jobs
 
 ## Examples:
 
