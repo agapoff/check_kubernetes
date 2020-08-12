@@ -93,10 +93,12 @@ Check TLS certs:
     kube-system/k8s-local-cert is about to expire in 18 days
 
 Check failed jobs with any name:
+
     ./check_kubernetes.sh -m jobs
     CRITICAL. Job bad has 5 failures. Job bad2 has 4 failures. 9 jobs in total have failed
 
 Checked failed jobs named 'good':
+
     ./check_kubernetes.sh -m jobs -n good
     OK: 0 failed jobs is below threshold
 
