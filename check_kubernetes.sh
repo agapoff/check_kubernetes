@@ -45,7 +45,7 @@ usage() {
 	  replicasets      Check for replicasets readiness
 	  statefulsets     Check for statefulsets readiness
 	  tls              Check for tls secrets expiration dates
-      jobs             Check for failed jobs
+	  jobs             Check for failed jobs
 	EOF
 
     exit 2
