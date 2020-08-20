@@ -145,10 +145,10 @@ mode_apiserver() {
     data=$(getJSON "" "healthz")
     [ $? -gt 0 ] && die "$data"
     if [ "$data" = ok ]; then
-        OUTPUT="OK. Kuberenetes apiserver health is OK"
+        OUTPUT="OK. Kubernetes apiserver health is OK"
         EXITCODE=0
     else
-        OUTPUT="CRITICAL. Kuberenetes apiserver health is $data"
+        OUTPUT="CRITICAL. Kubernetes apiserver health is $data"
         EXITCODE=2
     fi
 }
