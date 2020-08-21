@@ -655,9 +655,10 @@ mode_jobs() {
     WARN=${WARN:-1}
     CRIT=${CRIT:-2}
 
+    total_jobs=0
     declare -i total_failed_count=0
     declare -i job_fail_count
-    data=$(getJSON "get jobs $kubectl_ns" "apis/apps/v1$api_ns/jobs/")
+    data=$(getJSON "get jobs $kubectl_ns" "apis/batch/v1$api_ns/jobs/")
     [ $? -gt 0 ] && die "$data"
 
     if [ "$NAME" ]; then
@@ -680,6 +681,7 @@ mode_jobs() {
                                    .metadata.name"))
         fi
         for job in "${jobs[@]}"; do
+            ((total_jobs++))
             job_fail_count=$(echo $data | jq -r ".items[] | select(.status.failed and .metadata.name==\"$job\") | .status.failed")
             let "total_failed_count= $total_failed_count + $job_fail_count"
             if [ "$job_fail_count" -ge "${WARN}" ]; then
@@ -689,12 +691,20 @@ mode_jobs() {
                 EXITCODE=2
             fi
         done
-            if [ "$total_failed_count" -ge "${WARN}" ]; then
-                EXITCODE=1
-            if [ "$total_failed_count" -ge "${CRIT}" ]; then
-                EXITCODE=2
-            fi
+        if [ "$total_failed_count" -ge "${WARN}" ]; then
+            EXITCODE=1
+        elif [ "$total_failed_count" -ge "${CRIT}" ]; then
+            EXITCODE=2
         fi
+    done
+
+    if [ $EXITCODE = 0 ]; then
+        if [ -z "$ns" ]; then
+            OUTPUT="No jobs found"
+        else
+            OUTPUT="OK. $total_jobs checked. ${total_failed_count} failed jobs is below threshold"
+        fi
+    else
         if [ "$EXITCODE" -eq 1 ] ; then
             OUTPUT="WARNING. ${OUTPUT}"
         elif [ "$EXITCODE" -ge 2 ] ; then
@@ -703,10 +713,7 @@ mode_jobs() {
         if [ -z "$NAME" ] && [ "$EXITCODE" -ge 1 ] ; then
             OUTPUT="${OUTPUT}${total_failed_count} jobs in total have failed"
         fi
-        if [ $EXITCODE -eq 0 ] ; then
-            OUTPUT="OK: ${total_failed_count} failed jobs is below threshold"
-        fi
-    done
+    fi
 }
 
 case "$MODE" in
