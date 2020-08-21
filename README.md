@@ -14,6 +14,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 
 	Options are:
 	  -m MODE          Which check to perform
+	  -M EXIT_CODE     Override default exit code when resource is missing
 	  -H APISERVER     API URL to query, kubectl is used if this option is not set
 	  -T TOKEN         Authorization token for API
 	  -t TOKENFILE     Path to file with token in it

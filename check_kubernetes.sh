@@ -16,6 +16,7 @@ usage() {
 
 	Options are:
 	  -m MODE          Which check to perform
+	  -M EXIT_CODE     Override default exit code when resource is missing
 	  -H APISERVER     API URL to query, kubectl is used if this option is not set
 	  -T TOKEN         Authorization token for API
 	  -t TOKENFILE     Path to file with token in it
@@ -63,10 +64,11 @@ die() {
   exit "${2:-2}"
 }
 
-while getopts ":m:H:T:t:K:N:n:o:c:w:bh" arg; do
+while getopts ":m:M:H:T:t:K:N:n:o:c:w:bh" arg; do
     case $arg in
         h) usage ;;
         m) MODE="$OPTARG" ;;
+        M) MISSING="${OPTARG}" ;;
         o) TIMEOUT="${OPTARG}" ;;
         H) APISERVER="${OPTARG%/}" ;;
         T) TOKEN="$OPTARG" ;;
@@ -180,7 +182,7 @@ mode_nodes() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "${nodes[*]}" ]; then
             OUTPUT="No nodes found"
-            EXITCODE=2
+            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
         else
             OUTPUT="OK. ${#nodes[@]} nodes are Ready"
             BRIEF_OUTPUT="${#nodes[@]}"
@@ -213,7 +215,7 @@ mode_components() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "${components[*]}" ]; then
             OUTPUT="No components found"
-            EXITCODE=2
+            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
         else
             OUTPUT="OK. Healthy: $healthy_comps"
         fi
@@ -312,7 +314,7 @@ mode_tls() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No TLS certs found"
-            EXITCODE=2
+            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
         else
             if [ $count_ok -gt 1 ]; then
                 OUTPUT="OK. $count_ok TLS secrets are OK"
@@ -397,7 +399,7 @@ mode_pods() {
 
     if [ -z "$ns" ]; then
         OUTPUT="No pods found"
-        EXITCODE=2
+        [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
     else
         if [ "$max_restart_count" -ge "$WARN" ]; then
             OUTPUT="Container $bad_container: $max_restart_count restarts. "
@@ -448,7 +450,7 @@ mode_deployments() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No deployments found"
-            EXITCODE=2
+            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
         else
             if [ $count_avail -gt 1 ]; then
                 OUTPUT="OK. $count_avail deploymens are available"
@@ -509,7 +511,7 @@ mode_daemonsets() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No daemonsets found"
-            EXITCODE=2
+            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
         else
             if [ $count_avail -gt 1 ]; then
                 OUTPUT="OK. $count_avail daemonsets are ready"
@@ -571,7 +573,7 @@ mode_replicasets() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No replicasets found"
-            EXITCODE=2
+            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
         else
             if [ $count_avail -gt 1 ]; then
                 OUTPUT="OK. $count_avail replicasets are ready"
@@ -634,7 +636,7 @@ mode_statefulsets() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No statefulsets found"
-            EXITCODE=2
+            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
         else
             if [ $count_avail -gt 1 ]; then
                 OUTPUT="OK. $count_avail statefulsets are ready"
