@@ -38,15 +38,15 @@ usage() {
 	Modes are:
 	  apiserver        Not for kubectl, should be used for each apiserver independently
 	  components       Check for health of k8s components (etcd, controller-manager, scheduler etc.)
+	  daemonsets       Check for daemonsets readiness
+	  deployments      Check for deployments availability
+	  jobs             Check for failed jobs
 	  nodes            Check for active nodes
 	  pods             Check for restart count of containters in the pods
-	  deployments      Check for deployments availability
-	  daemonsets       Check for daemonsets readiness
-	  unboundpvs       Check for unbound persistent volumes.
 	  replicasets      Check for replicasets readiness
 	  statefulsets     Check for statefulsets readiness
 	  tls              Check for tls secrets expiration dates
-	  jobs             Check for failed jobs
+	  unboundpvs       Check for unbound persistent volumes.
 	EOF
 
     exit 2
