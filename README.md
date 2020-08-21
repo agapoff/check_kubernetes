@@ -14,7 +14,6 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 
 	Options are:
 	  -m MODE          Which check to perform
-	  -M EXIT_CODE     Override default exit code when resource is missing
 	  -H APISERVER     API URL to query, kubectl is used if this option is not set
 	  -T TOKEN         Authorization token for API
 	  -t TOKENFILE     Path to file with token in it
@@ -31,15 +30,16 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
 	  -b               Brief mode (more suitable for Zabbix)
+	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
 	  -h               Show this help and exit
 
 	Modes are:
 	  apiserver        Not for kubectl, should be used for each apiserver independently
 	  components       Check for health of k8s components (etcd, controller-manager, scheduler etc.)
+	  nodes            Check for active nodes
 	  daemonsets       Check for daemonsets readiness
 	  deployments      Check for deployments availability
 	  jobs             Check for failed jobs
-	  nodes            Check for active nodes
 	  pods             Check for restart count of containters in the pods
 	  replicasets      Check for replicasets readiness
 	  statefulsets     Check for statefulsets readiness

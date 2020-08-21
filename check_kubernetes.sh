@@ -16,7 +16,6 @@ usage() {
 
 	Options are:
 	  -m MODE          Which check to perform
-	  -M EXIT_CODE     Override default exit code when resource is missing
 	  -H APISERVER     API URL to query, kubectl is used if this option is not set
 	  -T TOKEN         Authorization token for API
 	  -t TOKENFILE     Path to file with token in it
@@ -33,15 +32,16 @@ usage() {
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
 	  -b               Brief mode (more suitable for Zabbix)
+	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
 	  -h               Show this help and exit
 
 	Modes are:
 	  apiserver        Not for kubectl, should be used for each apiserver independently
 	  components       Check for health of k8s components (etcd, controller-manager, scheduler etc.)
+	  nodes            Check for active nodes
 	  daemonsets       Check for daemonsets readiness
 	  deployments      Check for deployments availability
 	  jobs             Check for failed jobs
-	  nodes            Check for active nodes
 	  pods             Check for restart count of containters in the pods
 	  replicasets      Check for replicasets readiness
 	  statefulsets     Check for statefulsets readiness
@@ -68,7 +68,7 @@ while getopts ":m:M:H:T:t:K:N:n:o:c:w:bh" arg; do
     case $arg in
         h) usage ;;
         m) MODE="$OPTARG" ;;
-        M) MISSING="${OPTARG}" ;;
+        M) MISSING_EXITCODE="${OPTARG}" ;;
         o) TIMEOUT="${OPTARG}" ;;
         H) APISERVER="${OPTARG%/}" ;;
         T) TOKEN="$OPTARG" ;;
@@ -84,6 +84,7 @@ while getopts ":m:M:H:T:t:K:N:n:o:c:w:bh" arg; do
 done
 
 [ -z "$MODE" ] && usage
+MISSING_EXITCODE="${MISSING_EXITCODE:-2}"
 
 if [ "$APISERVER" ]; then
     [ -z "$TOKEN" ] && [ -z "$TOKENFILE" ] && usage
@@ -182,7 +183,7 @@ mode_nodes() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "${nodes[*]}" ]; then
             OUTPUT="No nodes found"
-            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
+            EXITCODE="$MISSING_EXITCODE"
         else
             OUTPUT="OK. ${#nodes[@]} nodes are Ready"
             BRIEF_OUTPUT="${#nodes[@]}"
@@ -215,7 +216,7 @@ mode_components() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "${components[*]}" ]; then
             OUTPUT="No components found"
-            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
+            EXITCODE="$MISSING_EXITCODE"
         else
             OUTPUT="OK. Healthy: $healthy_comps"
         fi
@@ -314,7 +315,7 @@ mode_tls() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No TLS certs found"
-            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
+            EXITCODE="$MISSING_EXITCODE"
         else
             if [ $count_ok -gt 1 ]; then
                 OUTPUT="OK. $count_ok TLS secrets are OK"
@@ -399,7 +400,7 @@ mode_pods() {
 
     if [ -z "$ns" ]; then
         OUTPUT="No pods found"
-        [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
+        EXITCODE="$MISSING_EXITCODE"
     else
         if [ "$max_restart_count" -ge "$WARN" ]; then
             OUTPUT="Container $bad_container: $max_restart_count restarts. "
@@ -450,7 +451,7 @@ mode_deployments() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No deployments found"
-            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
+            EXITCODE="$MISSING_EXITCODE"
         else
             if [ $count_avail -gt 1 ]; then
                 OUTPUT="OK. $count_avail deploymens are available"
@@ -495,7 +496,7 @@ mode_daemonsets() {
                                             select(.metadata.namespace==\"$ns\" and .metadata.name==\"$ds\") | \
                                            .status | to_entries | map(\"\(.key)=\(.value)\") | \
                                            .[]")
-            if [ $EXITCODE == 0 ]; then
+            if [ "$EXITCODE" == 0 ]; then
                 OUTPUT="Daemonset $ns/$ds ${statusArr[numberReady]}/${statusArr[desiredNumberScheduled]} ready"
             fi
             if [ "${statusArr[numberReady]}" != "${statusArr[desiredNumberScheduled]}" ]; then
@@ -511,7 +512,7 @@ mode_daemonsets() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No daemonsets found"
-            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
+            EXITCODE="$MISSING_EXITCODE"
         else
             if [ $count_avail -gt 1 ]; then
                 OUTPUT="OK. $count_avail daemonsets are ready"
@@ -573,7 +574,7 @@ mode_replicasets() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No replicasets found"
-            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
+            EXITCODE="$MISSING_EXITCODE"
         else
             if [ $count_avail -gt 1 ]; then
                 OUTPUT="OK. $count_avail replicasets are ready"
@@ -636,7 +637,7 @@ mode_statefulsets() {
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No statefulsets found"
-            [ -z ${MISSING} ] && EXITCODE=2 || EXITCODE=${MISSING}
+            EXITCODE="$MISSING_EXITCODE"
         else
             if [ $count_avail -gt 1 ]; then
                 OUTPUT="OK. $count_avail statefulsets are ready"
@@ -684,8 +685,8 @@ mode_jobs() {
         fi
         for job in "${jobs[@]}"; do
             ((total_jobs++))
-            job_fail_count=$(echo $data | jq -r ".items[] | select(.status.failed and .metadata.name==\"$job\") | .status.failed")
-            let "total_failed_count= $total_failed_count + $job_fail_count"
+            job_fail_count=$(echo "$data" | jq -r ".items[] | select(.status.failed and .metadata.name==\"$job\") | .status.failed")
+            total_failed_count="$((total_failed_count+job_fail_count))"
             if [ "$job_fail_count" -ge "${WARN}" ]; then
                 OUTPUT="${OUTPUT}Job $job has $job_fail_count failures. "
                 EXITCODE=1
