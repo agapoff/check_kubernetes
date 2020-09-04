@@ -694,10 +694,10 @@ mode_jobs() {
                 EXITCODE=2
             fi
         done
-        if [ "$total_failed_count" -ge "${WARN}" ]; then
-            EXITCODE=1
-        elif [ "$total_failed_count" -ge "${CRIT}" ]; then
+        if [ "$total_failed_count" -ge "${CRIT}" ]; then
             EXITCODE=2
+        elif [ "$total_failed_count" -ge "${WARN}" ]; then
+            EXITCODE=1
         fi
     done
 
