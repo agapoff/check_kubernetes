@@ -454,7 +454,7 @@ mode_deployments() {
             EXITCODE="$MISSING_EXITCODE"
         else
             if [ $count_avail -gt 1 ]; then
-                OUTPUT="OK. $count_avail deploymens are available"
+                OUTPUT="OK. $count_avail deployments are available"
             else
                 OUTPUT="OK. Deployment available"
             fi
