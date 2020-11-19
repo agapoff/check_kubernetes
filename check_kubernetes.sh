@@ -353,7 +353,7 @@ mode_pods() {
     fi
 
     for ns in "${namespaces[@]}"; do
-        nsdata="$(echo "$data" | jq -cr ".items[] | select(.metadata.namespace==\"$ns\")")"
+        nsdata="$(echo "$data" | jq -c -r ".items[] | select(.metadata.namespace==\"$ns\")")"
         if [ "$NAME" ]; then
             pods=($(echo "$nsdata" | \
                     jq -r "select(.status.reason!=\"Evicted\" \
@@ -427,7 +427,7 @@ mode_deployments() {
     fi
 
     for ns in "${namespaces[@]}"; do
-        nsdata="$(echo "$data" | jq -cr ".items[] | select(.metadata.namespace==\"$ns\")")"
+        nsdata="$(echo "$data" | jq -c -r ".items[] | select(.metadata.namespace==\"$ns\")")"
         if [ "$NAME" ]; then
             deps=("$NAME")
         else
