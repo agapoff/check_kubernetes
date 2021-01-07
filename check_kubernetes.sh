@@ -227,7 +227,7 @@ mode_components() {
 
 mode_unboundpvs() {
     CRIT=${CRIT:-5}
-    data=$(getJSON "get pvs" "api/v1/persistentvolumes")
+    data=$(getJSON "get pv" "api/v1/persistentvolumes")
     [ $? -gt 0 ] && die "$data"
     declare -A pvsArr unboundPvsArr
     while IFS="=" read -r key value; do
