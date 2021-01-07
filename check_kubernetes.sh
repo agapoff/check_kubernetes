@@ -367,7 +367,7 @@ mode_pods() {
         for pod in "${pods[@]}"; do
             containers=($(echo "$nsdata" | \
                           jq -r "select(.metadata.name==\"$pod\") | \
-                                 .status.containerStatuses[].name"))
+                                 .status.containerStatuses[]?.name"))
             for container in "${containers[@]}"; do
                 restart_count=$(echo "$nsdata" | \
                                 jq -r "select(.metadata.name==\"$pod\") | \
