@@ -35,7 +35,6 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 
 	Modes are:
 	  apiserver        Not for kubectl, should be used for each apiserver independently
-	  components       Check for health of k8s components (etcd, controller-manager, scheduler etc.)
 	  nodes            Check for active nodes
 	  daemonsets       Check for daemonsets readiness
 	  deployments      Check for deployments availability
@@ -45,6 +44,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	  statefulsets     Check for statefulsets readiness
 	  tls              Check for tls secrets expiration dates
 	  unboundpvs       Check for unbound persistent volumes.
+	  components       Check for health of k8s components (Deprectaed in K8s 1.19+)
 
 ## Examples:
 
