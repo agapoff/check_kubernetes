@@ -37,7 +37,6 @@ usage() {
 
 	Modes are:
 	  apiserver        Not for kubectl, should be used for each apiserver independently
-	  components       Check for health of k8s components (etcd, controller-manager, scheduler etc.)
 	  nodes            Check for active nodes
 	  daemonsets       Check for daemonsets readiness
 	  deployments      Check for deployments availability
@@ -47,6 +46,7 @@ usage() {
 	  statefulsets     Check for statefulsets readiness
 	  tls              Check for tls secrets expiration dates
 	  unboundpvs       Check for unbound persistent volumes.
+	  components       Check for health of k8s components (deprecated in K8s 1.19+)
 	EOF
 
     exit 2
@@ -151,6 +151,7 @@ mode_apiserver() {
         OUTPUT="OK. Kubernetes apiserver health is OK"
         EXITCODE=0
     else
+        data=$(echo "$data" | grep "\[\-\]")
         OUTPUT="CRITICAL. Kubernetes apiserver health is $data"
         EXITCODE=2
     fi
