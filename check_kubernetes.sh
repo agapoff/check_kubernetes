@@ -417,33 +417,35 @@ mode_pods() {
 mode_deployments() {
     count_avail=0
     count_failed=0
-    data=$(getJSON "get deployments $kubectl_ns" "apis/apps/v1$api_ns/deployments/")
-    [ $? -gt 0 ] && die "$data"
+    rawdata=$(getJSON "get deployments $kubectl_ns" "apis/apps/v1$api_ns/deployments/")
+    [ $? -gt 0 ] && die "$rawdata"
+
+    # deflate the data
+    data="$(echo "$rawdata" | jq -r '.items[] | {name: .metadata.name, namespace: .metadata.namespace, status: .status.conditions}')"
 
     if [ "$NAME" ]; then
-        namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
-                                            .metadata.namespace" | sort -u))
+        namespaces=($(echo "$data" | jq -r "select(.name==\"$NAME\") | \
+                                            .namespace" | sort -u))
     else
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u))
+        namespaces=($(echo "$data" | jq -r ".namespace" | sort -u))
     fi
 
     for ns in "${namespaces[@]}"; do
-        nsdata="$(echo "$data" | jq -c -r ".items[] | select(.metadata.namespace==\"$ns\")")"
+        nsdata="$(echo "$data" | jq -c -r "select(.namespace==\"$ns\")")"
+        availdeps=($(echo "$nsdata" | jq -r "{name: .name, status: .status[]|select(.type==\"Available\")} | \
+                                             select(.status.status == \"True\") | .name"))
         if [ "$NAME" ]; then
             deps=("$NAME")
         else
-            deps=($(echo "$nsdata" | jq -r ".metadata.name"))
+            deps=($(echo "$nsdata" | jq -r ".name"))
         fi
         for dep in "${deps[@]}"; do
-            avail="$(echo "$nsdata" | jq -r "select(.metadata.name==\"$dep\") | \
-                                             .status.conditions[] | select(.type==\"Available\") | \
-                                             .status")"
-            if [ "$avail" != True ]; then
+            if [[ " ${availdeps[@]} " =~ " $dep " ]]; then
+                ((count_avail++))
+            else
                 ((count_failed++))
                 EXITCODE=2
                 OUTPUT="Deployment $ns/$dep"
-            else
-                ((count_avail++))
             fi
         done
     done
