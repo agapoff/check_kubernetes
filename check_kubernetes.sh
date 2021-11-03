@@ -27,10 +27,12 @@ usage() {
 	                    - TLS expiration days for TLS mode; default is 30
 	                    - Pod restart count in pods mode; default is 30
 	                    - Job failed count in jobs mode; default is 1
+                        - Pvc storage utilization; default is 80%
 	  -c CRIT          Critical threshold for
 	                    - Pod restart count (in pods mode); default is 150
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
+                        - Pvc storage utilization; default is 90%
 	  -b               Brief mode (more suitable for Zabbix)
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
 	  -h               Show this help and exit
@@ -45,7 +47,8 @@ usage() {
 	  replicasets      Check for replicasets readiness
 	  statefulsets     Check for statefulsets readiness
 	  tls              Check for tls secrets expiration dates
-	  unboundpvs       Check for unbound persistent volumes.
+      pvc              Check for pvc utilization
+	  unboundpvs       Check for unbound persistent volumes
 	  components       Check for health of k8s components (deprecated in K8s 1.19+)
 	EOF
 
@@ -258,6 +261,66 @@ mode_unboundpvs() {
     fi
 }
 
+mode_pvc() {
+    WARN=${WARN:-80}
+    CRIT=${CRIT:-90}
+    WARN_ERROR=0
+    CRIT_ERROR=0
+    data="$(getJSON "get nodes" "api/v1/nodes")"
+    [ $? -gt 0 ] && die "$data"
+    nodes=($(echo "$data" | jq -r ".items[].metadata.name"))
+
+    for node in "${nodes[@]}"; do
+        data="$(getJSON "get nodes" "api/v1/nodes/$node/proxy/stats/summary")"
+        [ $? -gt 0 ] && die "$data"
+	pods=($(echo "$data" | jq -r ".pods[].podRef.name"))
+
+	for pod in "${pods[@]}"; do
+            pod_volumes="$(echo "$data" | jq -r ".pods[] | select(.podRef.name==\"$pod\") | .volume" 2>/dev/null)"
+	    [ "$pod_volumes" == "null" ] && continue
+	    for volumes in "${pod_volumes[@]}"; do
+		volumes_list="$(echo "$volumes" | jq -r ".[] | select(.pvcRef.name!=null)")"
+		volumes_namespace=$(echo "$volumes_list" | jq -r ".pvcRef.namespace" | uniq)
+		for pvc_volumes in "${volumes_list[@]}"; do
+		    [ "x$pvc_volumes" == "x" ] && continue
+		    for volume_name in $(echo $pvc_volumes | jq -r ".name"); do
+			volume_bytes_available=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .availableBytes")
+			volume_bytes_capacity=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .capacityBytes")
+			volume_bytes_used=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .usedBytes")
+			volume_inodes_free=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .inodesFree")
+			volume_inodes_used=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .inodesUsed")
+			volume_inodes_capacity=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .inodes")
+			volume_bytes_utilization=$(echo "100 * $volume_bytes_used / $volume_bytes_capacity" | bc)
+			volume_inodes_utilization=$(echo "100 * $volume_inodes_used / $volume_inodes_capacity" | bc)
+			if [ "$volume_bytes_utilization" -gt "$WARN" -a "$volume_bytes_utilization" -lt "$CRIT" ]; then
+			    echo "WARNING. High storage utilization on pvc $volume_name (namespace:$volumes_namespace): $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)" && WARN_ERROR=$(($WARN_ERROR+1))
+			fi
+			if [ "$volume_bytes_utilization" -gt "$CRIT" ]; then
+			    echo "CRITICAL. Very high storage utilization on pvc $volume_name: $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)" && CRIT_ERROR=$(($CRIT_ERROR+1))
+			fi
+			if [ "$volume_inodes_utilization" -gt "$WARN" -a "$volume_inodes_utilization" -lt "$CRIT" ]; then
+			    echo "WARNING. High inodes utilization on pvc $volume_name: $volume_inodes_utilization% ($volume_inodes_used/$volume_inodes_capacity)" && WARN_ERROR=$(($WARN_ERROR+1))
+                        fi
+                        if [ "$volume_inodes_utilization" -gt "$CRIT" ]; then
+			    echo "CRITICAL. Very high inodes utilization on pvc $volume_name: $volume_inodes_utilization% ($volume_inodes_used/$volume_inodes_capacity)" && CRIT_ERROR=$(($CRIT_ERROR+1))
+                        fi
+		    done
+		done
+	    done
+	done
+    done
+
+    if [ "$WARN_ERROR" -eq "0" -a "$CRIT_ERROR" -eq "0" ]; then
+        echo "OK. No problem on pvc storage"
+    elif [ "$WARN_ERROR" -ne "0" -a "$CRIT_ERROR" -eq "0" ]; then
+        exit 1
+    elif [ "$CRIT_ERROR" -ne "0" ]; then
+        exit 2
+    else
+        exit 3
+    fi
+}
+
 mode_tls() {
     WARN=${WARN:-30}
 
@@ -388,7 +451,7 @@ mode_pods() {
             elif [ "$count_status" == "Succeeded" ]; then
                 ((count_succeeded++))
             else
-                ((count_failed++))                                    
+                ((count_failed++))
             fi
         done
     done
@@ -734,6 +797,7 @@ case "$MODE" in
     (statefulsets) mode_statefulsets ;;
     (tls) mode_tls ;;
     (jobs) mode_jobs ;;
+    (pvc) mode_pvc ;;
     (*) usage ;;
 esac
 
