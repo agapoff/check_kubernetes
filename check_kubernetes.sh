@@ -1,5 +1,5 @@
 #!/bin/bash
-# shellcheck disable=SC2181,SC2207
+# shellcheck disable=SC2181,SC2207,SC2199,SC2076
 
 ##########################
 # Perform checks against Kubernetes API or with tab help of kubectl utility
@@ -283,34 +283,34 @@ mode_pvc() {
                 volumes_namespace=$(echo "$volumes_list" | jq -r ".pvcRef.namespace" | uniq)
                 for pvc_volumes in "${volumes_list[@]}"; do
                     [ -z "$pvc_volumes" ] && continue
-                    for volume_name in $(echo $pvc_volumes | jq -r ".name"); do
-                        volume_bytes_available=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .availableBytes")
+                    for volume_name in $(echo "$pvc_volumes" | jq -r ".name"); do
+                        #volume_bytes_available=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .availableBytes")
                         volume_bytes_capacity=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .capacityBytes")
                         volume_bytes_used=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .usedBytes")
-                        volume_inodes_free=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .inodesFree")
+                        #volume_inodes_free=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .inodesFree")
                         volume_inodes_used=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .inodesUsed")
                         volume_inodes_capacity=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .inodes")
                         volume_bytes_utilization=$(echo "100 * $volume_bytes_used / $volume_bytes_capacity" | bc)
                         volume_inodes_utilization=$(echo "100 * $volume_inodes_used / $volume_inodes_capacity" | bc)
-                        if [ "$volume_bytes_utilization" -gt "$WARN" -a "$volume_bytes_utilization" -lt "$CRIT" ]; then
+                        if [ "$volume_bytes_utilization" -gt "$WARN" ] && [ "$volume_bytes_utilization" -lt "$CRIT" ]; then
                             echo "WARNING. High storage utilization on pvc $volume_name (namespace:$volumes_namespace): \
                                 $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)"
-                            WARN_ERROR=$(($WARN_ERROR+1))
+                            ((WARN_ERROR++))
                         fi
                         if [ "$volume_bytes_utilization" -gt "$CRIT" ]; then
                             echo "CRITICAL. Very high storage utilization on pvc $volume_name: \
                                 $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)"
-                            CRIT_ERROR=$(($CRIT_ERROR+1))
+                            ((CRIT_ERROR++))
                         fi
-                        if [ "$volume_inodes_utilization" -gt "$WARN" -a "$volume_inodes_utilization" -lt "$CRIT" ]; then
+                        if [ "$volume_inodes_utilization" -gt "$WARN" ] && [ "$volume_inodes_utilization" -lt "$CRIT" ]; then
                             echo "WARNING. High inodes utilization on pvc $volume_name: \
                                 $volume_inodes_utilization% ($volume_inodes_used/$volume_inodes_capacity)"
-                            WARN_ERROR=$(($WARN_ERROR+1))
+                            ((WARN_ERROR++))
                         fi
                         if [ "$volume_inodes_utilization" -gt "$CRIT" ]; then
                             echo "CRITICAL. Very high inodes utilization on pvc $volume_name: \
                                 $volume_inodes_utilization% ($volume_inodes_used/$volume_inodes_capacity)"
-                            CRIT_ERROR=$(($CRIT_ERROR+1))
+                            ((CRIT_ERROR++))
                         fi
                     done
                 done
@@ -318,9 +318,9 @@ mode_pvc() {
         done
     done
 
-    if [ "$WARN_ERROR" -eq "0" -a "$CRIT_ERROR" -eq "0" ]; then
+    if [ "$WARN_ERROR" -eq "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
         echo "OK. No problem on pvc storage"
-    elif [ "$WARN_ERROR" -ne "0" -a "$CRIT_ERROR" -eq "0" ]; then
+    elif [ "$WARN_ERROR" -ne "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
         exit 1
     elif [ "$CRIT_ERROR" -ne "0" ]; then
         exit 2
