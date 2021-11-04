@@ -266,6 +266,8 @@ mode_pvc() {
     CRIT=${CRIT:-90}
     WARN_ERROR=0
     CRIT_ERROR=0
+    PVC_COUNT=0
+
     data="$(getJSON "get nodes" "api/v1/nodes")"
     [ $? -gt 0 ] && die "$data"
     nodes=($(echo "$data" | jq -r ".items[].metadata.name"))
@@ -274,7 +276,6 @@ mode_pvc() {
         data="$(getJSON "get nodes" "api/v1/nodes/$node/proxy/stats/summary")"
         [ $? -gt 0 ] && die "$data"
         pods=($(echo "$data" | jq -r ".pods[].podRef.name"))
-
         for pod in "${pods[@]}"; do
             pod_volumes="$(echo "$data" | jq -r ".pods[] | select(.podRef.name==\"$pod\") | .volume" 2>/dev/null)"
             [ "$pod_volumes" == "null" ] && continue
@@ -292,6 +293,9 @@ mode_pvc() {
                         volume_inodes_capacity=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .inodes")
                         volume_bytes_utilization=$(echo "100 * $volume_bytes_used / $volume_bytes_capacity" | bc)
                         volume_inodes_utilization=$(echo "100 * $volume_inodes_used / $volume_inodes_capacity" | bc)
+
+                        ((PVC_COUNT++))
+
                         if [ "$volume_bytes_utilization" -gt "$WARN" ] && [ "$volume_bytes_utilization" -lt "$CRIT" ]; then
                             echo "WARNING. High storage utilization on pvc $volume_name (namespace:$volumes_namespace): \
                                 $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)"
@@ -319,7 +323,7 @@ mode_pvc() {
     done
 
     if [ "$WARN_ERROR" -eq "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
-        echo "OK. No problem on pvc storage"
+        echo "OK. No problem on $pvc_count pvc storage"
     elif [ "$WARN_ERROR" -ne "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
         exit 1
     elif [ "$CRIT_ERROR" -ne "0" ]; then

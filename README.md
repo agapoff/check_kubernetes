@@ -54,7 +54,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 Check apiserver health using tokenfile:
 
     ./check_kubernetes.sh -m apiserver -H https://<...>:6443 -t /path/to/tokenfile
-    OK. Kuberenetes apiserver health is OK
+    OK. Kubernetes apiserver health is OK
 
 Check whether all deployments are available using token:
 
@@ -105,6 +105,12 @@ Checked failed jobs named 'good':
 
     ./check_kubernetes.sh -m jobs -n good
     OK: 0 failed jobs is below threshold
+
+Check utilization if pvc (if consumes more than %):
+
+    ./check_kubernetes.sh -m pvc
+    CRITICAL. Very high storage utilization on pvc prometheus-data: 93% (86106636288/157459890176 Bytes)
+
 
 ## Brief mode
 
