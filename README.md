@@ -142,17 +142,21 @@ Command:
       command = [ PluginDir + "/check_kubernetes.sh" ]
     
       arguments = {
-                    "-H" = "$kube_scheme$://$host.address$:$kube_port$"
-                    "-m" = "$kube_mode$"
-                    "-o" = "$kube_timeout$"
-                    "-T" = "$kube_pass$"
-                    "-t" = "$kube_tokenfile$"
-                    "-K" = "$kube_config$"
-                    "-N" = "$kube_ns$"
-                    "-n" = "$kube_name$"
-                    "-w" = "$kube_warn$"
-                    "-c" = "$kube_crit$"
+        "-H" = "$kube_apiserver$"
+        "-m" = "$kube_mode$"
+        "-o" = "$kube_timeout$"
+        "-T" = "$kube_pass$"
+        "-t" = "$kube_tokenfile$"
+        "-K" = "$kube_config$"
+        "-N" = "$kube_ns$"
+        "-n" = "$kube_name$"
+        "-w" = "$kube_warn$"
+        "-c" = "$kube_crit$"
       }
+      vars.kube_host = "$host.address$"
+      vars.kube_port = 6443
+      vars.kube_scheme = "https"
+      vars.kube_apiserver = "$kube_scheme$://$kube_host$:$kube_port$"
     }
     
 Services:
