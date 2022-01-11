@@ -323,7 +323,7 @@ mode_pvc() {
     done
 
     if [ "$WARN_ERROR" -eq "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
-        echo "OK. No problem on $pvc_count pvc storage"
+        echo "OK. No problem on $PVC_COUNT pvc storage"
     elif [ "$WARN_ERROR" -ne "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
         exit 1
     elif [ "$CRIT_ERROR" -ne "0" ]; then
