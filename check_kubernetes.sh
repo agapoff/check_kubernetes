@@ -49,7 +49,6 @@ usage() {
 	  tls              Check for tls secrets expiration dates
 	  pvc              Check for pvc utilization
 	  unboundpvs       Check for unbound persistent volumes
-	  components       Check for health of k8s components (deprecated in K8s 1.19+)
 	EOF
 
     exit 2
@@ -194,38 +193,6 @@ mode_nodes() {
         fi
     else
         BRIEF_OUTPUT="-1"
-    fi
-}
-
-mode_components() {
-    healthy_comps=""
-    unhealthy_comps=""
-    data="$(getJSON "get cs" "api/v1/componentstatuses")"
-    [ $? -gt 0 ] && die "$data"
-    components=($(echo "$data" | jq -r ".items[].metadata.name"))
-
-    for comp in "${components[@]}"; do
-        healthy=$(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$comp\") | \
-                                        .conditions[] | select(.type==\"Healthy\") | \
-                                        .status")
-        if [ "$healthy" != True ]; then
-            EXITCODE=2
-            unhealthy_comps="$unhealthy_comps $comp"
-        else
-            healthy_comps="$healthy_comps $comp"
-        fi
-    done
-
-    BRIEF_OUTPUT="$healthy_comps"
-    if [ $EXITCODE = 0 ]; then
-        if [ -z "${components[*]}" ]; then
-            OUTPUT="No components found"
-            EXITCODE="$MISSING_EXITCODE"
-        else
-            OUTPUT="OK. Healthy: $healthy_comps"
-        fi
-    else
-        OUTPUT="CRITICAL. Unhealthy: $unhealthy_comps; Healthy: $healthy_comps"
     fi
 }
 
@@ -799,7 +766,6 @@ mode_jobs() {
 
 case "$MODE" in
     (apiserver) mode_apiserver ;;
-    (components) mode_components ;;
     (daemonsets) mode_daemonsets ;;
     (deployments) mode_deployments ;;
     (nodes) mode_nodes ;;

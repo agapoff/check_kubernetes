@@ -23,7 +23,6 @@ rules:
     resources:
       - pods
       - nodes
-      - componentstatuses
       - secrets
       - persistentvolumes
     verbs:
