@@ -33,7 +33,6 @@ usage() {
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
 	                    - Pvc storage utilization; default is 90%
-	  -b               Brief mode (more suitable for Zabbix)
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
 	  -h               Show this help and exit
 
@@ -54,20 +53,15 @@ usage() {
     exit 2
 }
 
-BRIEF=0
 TIMEOUT=15
 unset NAME
 
 die() {
-  if [ "$BRIEF" = 1 ]; then
-    echo "-1"
-  else
     echo "$1"
-  fi
   exit "${2:-2}"
 }
 
-while getopts ":m:M:H:T:t:K:N:n:o:c:w:bh" arg; do
+while getopts ":m:M:H:T:t:K:N:n:o:c:w:h" arg; do
     case $arg in
         h) usage ;;
         m) MODE="$OPTARG" ;;
@@ -81,7 +75,6 @@ while getopts ":m:M:H:T:t:K:N:n:o:c:w:bh" arg; do
         n) NAME="$OPTARG" ;;
         w) WARN="$OPTARG" ;;
         c) CRIT="$OPTARG" ;;
-        b) BRIEF=1 ;;
         *) usage ;;
     esac
 done
@@ -190,10 +183,7 @@ mode_nodes() {
             EXITCODE="$MISSING_EXITCODE"
         else
             OUTPUT="OK. ${#nodes[@]} nodes are Ready"
-            BRIEF_OUTPUT="${#nodes[@]}"
         fi
-    else
-        BRIEF_OUTPUT="-1"
     fi
 }
 
@@ -214,9 +204,7 @@ mode_unboundpvs() {
                      select(.status.phase!=\"Bound\") | \
                     \"\(.metadata.name):\(.status.phase):\(.spec.claimRef.uid)\"")
 
-    BRIEF_OUTPUT="${#pvsArr[*]}"
     if [ ${#unboundPvsArr[*]} -gt 0 ]; then
-        BRIEF_OUTPUT="-${#unboundPvsArr[*]}"
         if [ ${#unboundPvsArr[*]} -ge "$CRIT" ]; then
             OUTPUT="CRITICAL. Unbound persistentvolumes:\n$OUTPUT"
             EXITCODE=2
@@ -355,7 +343,6 @@ mode_tls() {
         done
     done
 
-    BRIEF_OUTPUT="$count_ok"
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No TLS certs found"
@@ -436,12 +423,6 @@ mode_pods() {
         done
     done
 
-    if [ "$max_restart_count" -ge "$WARN" ]; then
-        BRIEF_OUTPUT="-$max_restart_count"
-    else
-        BRIEF_OUTPUT="$count_ready"
-    fi
-
     if [ -z "$ns" ]; then
         OUTPUT="No pods found"
         EXITCODE="$MISSING_EXITCODE"
@@ -493,7 +474,6 @@ mode_deployments() {
         done
     done
 
-    BRIEF_OUTPUT="$count_avail"
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No deployments found"
@@ -554,7 +534,6 @@ mode_daemonsets() {
         done
     done
 
-    BRIEF_OUTPUT="$count_avail"
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No daemonsets found"
@@ -616,7 +595,6 @@ mode_replicasets() {
         done
     done
 
-    BRIEF_OUTPUT="$count_avail"
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No replicasets found"
@@ -679,7 +657,6 @@ mode_statefulsets() {
         done
     done
 
-    BRIEF_OUTPUT="$count_avail"
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No statefulsets found"
@@ -780,16 +757,6 @@ case "$MODE" in
     (*) usage ;;
 esac
 
-if [ "$BRIEF" = 1 ]; then
-    if [ "$EXITCODE" = 0 ]; then
-        echo "${BRIEF_OUTPUT:-1}"
-    elif [ -z "$BRIEF_FAIL_OUTPUT" ]; then
-        echo "${BRIEF_OUTPUT:-0}"
-    else
-        echo "${BRIEF_FAIL_OUTPUT}"
-    fi
-else
-    echo "$OUTPUT"
-fi
+printf "$OUTPUT"
 
 exit $EXITCODE
