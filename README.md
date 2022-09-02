@@ -31,7 +31,6 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
 	                    - Pvc storage utilization; default is 90%
-	  -b               Brief mode (more suitable for Zabbix)
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
 	  -h               Show this help and exit
 
@@ -112,7 +111,7 @@ Check utilization if pvc (if consumes more than %):
     CRITICAL. Very high storage utilization on pvc prometheus-data: 93% (86106636288/157459890176 Bytes)
 
 
-## Brief mode
+## Brief mode (removed in v1.1.0)
 
 All modes support the -b brief option.  In this mode, a single numerical output is returned.  The number is positive on success and zero or negative on error.
 

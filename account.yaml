@@ -23,7 +23,7 @@ rules:
     resources:
       - pods
       - nodes
-#      - secrets
+      - secrets
       - persistentvolumes
     verbs:
       - get
