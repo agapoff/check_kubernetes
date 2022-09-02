@@ -56,6 +56,7 @@ usage() {
 
 BRIEF=0
 TIMEOUT=15
+unset NAME
 
 die() {
   if [ "$BRIEF" = 1 ]; then
