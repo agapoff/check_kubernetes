@@ -33,7 +33,6 @@ usage() {
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
 	                    - Pvc storage utilization; default is 90%
-	  -b               Brief mode (more suitable for Zabbix)
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
 	  -h               Show this help and exit
 
@@ -49,25 +48,20 @@ usage() {
 	  tls              Check for tls secrets expiration dates
 	  pvc              Check for pvc utilization
 	  unboundpvs       Check for unbound persistent volumes
-	  components       Check for health of k8s components (deprecated in K8s 1.19+)
 	EOF
 
     exit 2
 }
 
-BRIEF=0
 TIMEOUT=15
+unset NAME
 
 die() {
-  if [ "$BRIEF" = 1 ]; then
-    echo "-1"
-  else
     echo "$1"
-  fi
   exit "${2:-2}"
 }
 
-while getopts ":m:M:H:T:t:K:N:n:o:c:w:bh" arg; do
+while getopts ":m:M:H:T:t:K:N:n:o:c:w:h" arg; do
     case $arg in
         h) usage ;;
         m) MODE="$OPTARG" ;;
@@ -81,7 +75,6 @@ while getopts ":m:M:H:T:t:K:N:n:o:c:w:bh" arg; do
         n) NAME="$OPTARG" ;;
         w) WARN="$OPTARG" ;;
         c) CRIT="$OPTARG" ;;
-        b) BRIEF=1 ;;
         *) usage ;;
     esac
 done
@@ -151,7 +144,7 @@ mode_apiserver() {
     data=$(getJSON "" "healthz")
     [ $? -gt 0 ] && die "$data"
     if [ "$data" = ok ]; then
-        OUTPUT="OK. Kubernetes apiserver health is OK"
+        OUTPUT="OK. Kubernetes apiserver is healthy"
         EXITCODE=0
     else
         data=$(echo "$data" | grep "\[\-\]")
@@ -171,7 +164,7 @@ mode_nodes() {
                                        .status")"
         if [ "$ready" != True ]; then
             EXITCODE=2
-            OUTPUT="${OUTPUT}Node $node not ready. "
+            OUTPUT="ERROR. ${OUTPUT}Node $node not ready\n"
         fi
         for condition in OutOfDisk MemoryPressure DiskPressure; do
             state="$(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$node\") | \
@@ -179,7 +172,7 @@ mode_nodes() {
                                            .status")"
             if [ "$state" = True ]; then
                 [ $EXITCODE -lt 1 ] && EXITCODE=1
-                OUTPUT="$OUTPUT $node $condition."
+                OUTPUT="WARN. ${OUTPUT} $node $condition\n"
             fi
         done
     done
@@ -189,43 +182,8 @@ mode_nodes() {
             OUTPUT="No nodes found"
             EXITCODE="$MISSING_EXITCODE"
         else
-            OUTPUT="OK. ${#nodes[@]} nodes are Ready"
-            BRIEF_OUTPUT="${#nodes[@]}"
+            OUTPUT="OK. ${#nodes[@]} nodes are ready"
         fi
-    else
-        BRIEF_OUTPUT="-1"
-    fi
-}
-
-mode_components() {
-    healthy_comps=""
-    unhealthy_comps=""
-    data="$(getJSON "get cs" "api/v1/componentstatuses")"
-    [ $? -gt 0 ] && die "$data"
-    components=($(echo "$data" | jq -r ".items[].metadata.name"))
-
-    for comp in "${components[@]}"; do
-        healthy=$(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$comp\") | \
-                                        .conditions[] | select(.type==\"Healthy\") | \
-                                        .status")
-        if [ "$healthy" != True ]; then
-            EXITCODE=2
-            unhealthy_comps="$unhealthy_comps $comp"
-        else
-            healthy_comps="$healthy_comps $comp"
-        fi
-    done
-
-    BRIEF_OUTPUT="$healthy_comps"
-    if [ $EXITCODE = 0 ]; then
-        if [ -z "${components[*]}" ]; then
-            OUTPUT="No components found"
-            EXITCODE="$MISSING_EXITCODE"
-        else
-            OUTPUT="OK. Healthy: $healthy_comps"
-        fi
-    else
-        OUTPUT="CRITICAL. Unhealthy: $unhealthy_comps; Healthy: $healthy_comps"
     fi
 }
 
@@ -246,9 +204,7 @@ mode_unboundpvs() {
                      select(.status.phase!=\"Bound\") | \
                     \"\(.metadata.name):\(.status.phase):\(.spec.claimRef.uid)\"")
 
-    BRIEF_OUTPUT="${#pvsArr[*]}"
     if [ ${#unboundPvsArr[*]} -gt 0 ]; then
-        BRIEF_OUTPUT="-${#unboundPvsArr[*]}"
         if [ ${#unboundPvsArr[*]} -ge "$CRIT" ]; then
             OUTPUT="CRITICAL. Unbound persistentvolumes:\n$OUTPUT"
             EXITCODE=2
@@ -387,7 +343,6 @@ mode_tls() {
         done
     done
 
-    BRIEF_OUTPUT="$count_ok"
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No TLS certs found"
@@ -465,28 +420,30 @@ mode_pods() {
             else
                 ((count_failed++))
             fi
+            if [ "$restart_count" -ge "$WARN" ]; then
+                OUTPUT="${OUTPUT}Container $bad_container: $restart_count restarts.\n"
+                EXITCODE=1
+                if [ "$restart_count" -ge "$CRIT" ]; then
+                    EXITCODE=2
+                fi
+            fi
         done
     done
 
-    if [ "$max_restart_count" -ge "$WARN" ]; then
-        BRIEF_OUTPUT="-$max_restart_count"
-    else
-        BRIEF_OUTPUT="$count_ready"
-    fi
-
+    if [ $EXITCODE = 0 ]; then
     if [ -z "$ns" ]; then
         OUTPUT="No pods found"
         EXITCODE="$MISSING_EXITCODE"
     else
-        if [ "$max_restart_count" -ge "$WARN" ]; then
-            OUTPUT="Container $bad_container: $max_restart_count restarts. "
-            EXITCODE=1
-            if [ "$max_restart_count" -ge "$CRIT" ]; then
-                EXITCODE=2
+             OUTPUT="OK. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
+        fi
+    else
+        if [ $EXITCODE = 1 ]; then
+            OUTPUT="WARNING. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
+        else
+            OUTPUT="ERROR. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
             fi
         fi
-        OUTPUT="$OUTPUT$count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready"
-    fi
 }
 
 mode_deployments() {
@@ -525,7 +482,6 @@ mode_deployments() {
         done
     done
 
-    BRIEF_OUTPUT="$count_avail"
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No deployments found"
@@ -586,7 +542,6 @@ mode_daemonsets() {
         done
     done
 
-    BRIEF_OUTPUT="$count_avail"
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No daemonsets found"
@@ -648,7 +603,6 @@ mode_replicasets() {
         done
     done
 
-    BRIEF_OUTPUT="$count_avail"
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No replicasets found"
@@ -701,7 +655,7 @@ mode_statefulsets() {
             done < <(echo "$data" | \
                      jq -r ".items[] | select(.metadata.namespace==\"$ns\" and .metadata.name==\"$rs\") | \
                             .status | to_entries | map(\"\(.key)=\(.value)\") | .[]")
-            OUTPUT="Statefulset $ns/$rs ${statusArr[readyReplicas]}/${statusArr[currentReplicas]} ready"
+            OUTPUT="${OUTPUT}Statefulset $ns/$rs ${statusArr[readyReplicas]}/${statusArr[currentReplicas]} ready\n"
             if [ "${statusArr[readyReplicas]}" != "${statusArr[currentReplicas]}" ]; then
                 ((count_failed++))
                 EXITCODE=2
@@ -711,7 +665,6 @@ mode_statefulsets() {
         done
     done
 
-    BRIEF_OUTPUT="$count_avail"
     if [ $EXITCODE = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No statefulsets found"
@@ -766,7 +719,7 @@ mode_jobs() {
             job_fail_count=$(echo "$data" | jq -r ".items[] | select(.status.failed and .metadata.name==\"$job\") | .status.failed")
             total_failed_count="$((total_failed_count+job_fail_count))"
             if [ "$job_fail_count" -ge "${WARN}" ]; then
-                OUTPUT="${OUTPUT}Job $job has $job_fail_count failures. "
+                OUTPUT="${OUTPUT}Job $job has $job_fail_count failures\n"
                 EXITCODE=1
             elif [ "$job_fail_count" -ge "${CRIT}" ]; then
                 EXITCODE=2
@@ -783,7 +736,7 @@ mode_jobs() {
         if [ -z "$ns" ]; then
             OUTPUT="No jobs found"
         else
-            OUTPUT="OK. $total_jobs checked. ${total_failed_count} failed jobs is below threshold"
+            OUTPUT="OK. $total_jobs checked. ${total_failed_count} failed jobs is below threshold\n"
         fi
     else
         if [ "$EXITCODE" -eq 1 ] ; then
@@ -792,14 +745,13 @@ mode_jobs() {
             OUTPUT="CRITICAL. ${OUTPUT}"
         fi
         if [ -z "$NAME" ] && [ "$EXITCODE" -ge 1 ] ; then
-            OUTPUT="${OUTPUT}${total_failed_count} jobs in total have failed"
+            OUTPUT="${OUTPUT}${total_failed_count} jobs have failed"
         fi
     fi
 }
 
 case "$MODE" in
     (apiserver) mode_apiserver ;;
-    (components) mode_components ;;
     (daemonsets) mode_daemonsets ;;
     (deployments) mode_deployments ;;
     (nodes) mode_nodes ;;
@@ -813,16 +765,6 @@ case "$MODE" in
     (*) usage ;;
 esac
 
-if [ "$BRIEF" = 1 ]; then
-    if [ "$EXITCODE" = 0 ]; then
-        echo "${BRIEF_OUTPUT:-1}"
-    elif [ -z "$BRIEF_FAIL_OUTPUT" ]; then
-        echo "${BRIEF_OUTPUT:-0}"
-    else
-        echo "${BRIEF_FAIL_OUTPUT}"
-    fi
-else
-    echo "$OUTPUT"
-fi
+printf "$OUTPUT"
 
 exit $EXITCODE
