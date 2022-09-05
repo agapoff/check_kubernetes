@@ -6,6 +6,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 
  * jq
  * openssl
+ * bc (for mode pvc)
 
 ## Script usage
 
