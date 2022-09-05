@@ -164,7 +164,7 @@ mode_nodes() {
                                        .status")"
         if [ "$ready" != True ]; then
             EXITCODE=2
-            OUTPUT="${OUTPUT}Node $node not ready. "
+            OUTPUT="ERROR. ${OUTPUT}Node $node not ready\n"
         fi
         for condition in OutOfDisk MemoryPressure DiskPressure; do
             state="$(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$node\") | \
@@ -172,7 +172,7 @@ mode_nodes() {
                                            .status")"
             if [ "$state" = True ]; then
                 [ $EXITCODE -lt 1 ] && EXITCODE=1
-                OUTPUT="${OUTPUT} $node $condition. "
+                OUTPUT="WARN. ${OUTPUT} $node $condition\n"
             fi
         done
     done
