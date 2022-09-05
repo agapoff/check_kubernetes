@@ -164,7 +164,7 @@ mode_nodes() {
                                        .status")"
         if [ "$ready" != True ]; then
             EXITCODE=2
-            OUTPUT="${OUTPUT}Node $node not ready. "
+            OUTPUT="ERROR. ${OUTPUT}Node $node not ready\n"
         fi
         for condition in OutOfDisk MemoryPressure DiskPressure; do
             state="$(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$node\") | \
@@ -172,7 +172,7 @@ mode_nodes() {
                                            .status")"
             if [ "$state" = True ]; then
                 [ $EXITCODE -lt 1 ] && EXITCODE=1
-                OUTPUT="${OUTPUT} $node $condition. "
+                OUTPUT="WARN. ${OUTPUT} $node $condition\n"
             fi
         done
     done
@@ -253,23 +253,19 @@ mode_pvc() {
                         ((PVC_COUNT++))
 
                         if [ "$volume_bytes_utilization" -gt "$WARN" ] && [ "$volume_bytes_utilization" -lt "$CRIT" ]; then
-                            echo "WARNING. High storage utilization on pvc $volume_name (namespace:$volumes_namespace): \
-                                $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)"
+                             OUTPUT="${OUTPUT}High storage utilization on pvc $volume_name (namespace:$volumes_namespace): $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)\n"
                             ((WARN_ERROR++))
                         fi
                         if [ "$volume_bytes_utilization" -gt "$CRIT" ]; then
-                            echo "CRITICAL. Very high storage utilization on pvc $volume_name: \
-                                $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)"
+                             OUTPUT="${OUTPUT}Very high storage utilization on pvc $volume_name: $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)\n"
                             ((CRIT_ERROR++))
                         fi
                         if [ "$volume_inodes_utilization" -gt "$WARN" ] && [ "$volume_inodes_utilization" -lt "$CRIT" ]; then
-                            echo "WARNING. High inodes utilization on pvc $volume_name: \
-                                $volume_inodes_utilization% ($volume_inodes_used/$volume_inodes_capacity)"
+                             OUTPUT="${OUTPUT}High inodes utilization on pvc $volume_name: $volume_inodes_utilization% ($volume_inodes_used/$volume_inodes_capacity)\n"
                             ((WARN_ERROR++))
                         fi
                         if [ "$volume_inodes_utilization" -gt "$CRIT" ]; then
-                            echo "CRITICAL. Very high inodes utilization on pvc $volume_name: \
-                                $volume_inodes_utilization% ($volume_inodes_used/$volume_inodes_capacity)"
+                             OUTPUT="${OUTPUT}Very high inodes utilization on pvc $volume_name: $volume_inodes_utilization% ($volume_inodes_used/$volume_inodes_capacity)\n"
                             ((CRIT_ERROR++))
                         fi
                     done
@@ -279,12 +275,15 @@ mode_pvc() {
     done
 
     if [ "$WARN_ERROR" -eq "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
-        echo "OK. No problem on $PVC_COUNT pvc storage"
+        echo "OK. No problems on $PVC_COUNT pvc"
     elif [ "$WARN_ERROR" -ne "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
+        echo "WARNING.\n${OUTPUT}"
         exit 1
     elif [ "$CRIT_ERROR" -ne "0" ]; then
+        echo "CRITICAL.\n${OUTPUT}"
         exit 2
     else
+        echo "ERROR.\n${OUTPUT}"
         exit 3
     fi
 }
