@@ -126,7 +126,7 @@ All the needed objects (ServiceAccount, ClusterRole, RoleBinding) can be created
 
     kubectl apply -f https://raw.githubusercontent.com/agapoff/check_kubernetes/master/account.yaml
 
-You may also prefer to revise and tighten the RBAC role if you're not going to use all modes. For example you may get rid of secrets permission if you have no need to check the TLS certs.
+For mode pvc or tls you need to enable the permissions in the yaml first. Those two can have security implications and are thus disabled by default.
 
 Then in order to get the token just issue this command:
 

@@ -23,6 +23,9 @@ rules:
     resources:
       - pods
       - nodes
+# required for mode pvc
+#      - nodes/proxy
+# required for mode tls
 #      - secrets
       - persistentvolumes
     verbs:
