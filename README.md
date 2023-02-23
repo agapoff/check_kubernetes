@@ -122,7 +122,7 @@ For numerical checks, the number is returned on success and zero or a negative n
 
 ## ServiceAccount and token
 
-All the needed objects (ServiceAccount, ClusterRole, RoleBinding) can be created with this command:
+All the needed objects (ServiceAccount, Secret, ClusterRole, RoleBinding) can be created by Terraform with terraform.tf file or with this command:
 
     kubectl apply -f https://raw.githubusercontent.com/agapoff/check_kubernetes/master/account.yaml
 
@@ -130,7 +130,7 @@ For mode pvc or tls you need to enable the permissions in the yaml first. Those 
 
 Then in order to get the token just issue this command:
 
-    kubectl -n monitoring get secret "$(kubectl -n monitoring get serviceaccount monitoring -o 'jsonpath={.secrets[0].name}')" -o "jsonpath={.data.token}" | openssl enc -d -base64 -A
+    kubectl -n monitoring get secret monitoring -o "jsonpath={.data.token}" | openssl enc -d -base64 -A
 
 ## Example configuration for Icinga
 

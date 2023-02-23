@@ -12,6 +12,16 @@ metadata:
   namespace: monitoring
 
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: monitoring
+  namespace: monitoring
+  annotations:
+    kubernetes.io/service-account.name: "monitoring"
+type: kubernetes.io/service-account-token
+
+---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
