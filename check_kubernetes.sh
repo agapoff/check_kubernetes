@@ -58,7 +58,7 @@ unset NAME
 
 die() {
     echo "$1"
-  exit "${2:-2}"
+    exit "${2:-2}"
 }
 
 while getopts ":m:M:H:T:t:K:N:n:o:c:w:h" arg; do
@@ -91,8 +91,7 @@ fi
 command -v jq &>/dev/null || die "CRITICAL: jq is required"
 
 getJSON() {
-    kubectl_command=$1
-    api_path=$2
+    api_path=$1
 
     if [ "$APISERVER" ]; then
         if [ -z "$TOKEN" ]; then
@@ -115,7 +114,7 @@ getJSON() {
             die "Could not access API"
         fi
     else
-        data=$(eval timeout "$TIMEOUT" kubectl "$kubectl_command" -o json 2>&1)
+        data=$(eval timeout "$TIMEOUT" kubectl get --raw "/$api_path" 2>&1)
         code=$?
         if [ $code -gt 0 ]; then
             if [ $code = 124 ]; then
@@ -131,17 +130,15 @@ getJSON() {
 OUTPUT=""
 EXITCODE=0
 
-kubectl_ns="--all-namespaces"
 if [ "$NAMESPACE" ]; then
     api_ns="/namespaces/$NAMESPACE"
-    kubectl_ns="--namespace=$NAMESPACE"
 fi
 
 mode_apiserver() {
     if [ -z "$APISERVER" ]; then
         die "Apiserver URL should be defined in this mode"
     fi
-    data=$(getJSON "" "healthz")
+    data=$(getJSON "healthz")
     [ $? -gt 0 ] && die "$data"
     if [ "$data" = ok ]; then
         OUTPUT="OK. Kubernetes apiserver is healthy"
@@ -154,7 +151,7 @@ mode_apiserver() {
 }
 
 mode_nodes() {
-    data="$(getJSON "get nodes" "api/v1/nodes")"
+    data="$(getJSON "api/v1/nodes")"
     [ $? -gt 0 ] && die "$data"
     nodes=($(echo "$data" | jq -r ".items[].metadata.name"))
 
@@ -189,7 +186,7 @@ mode_nodes() {
 
 mode_unboundpvs() {
     CRIT=${CRIT:-5}
-    data=$(getJSON "get pv" "api/v1/persistentvolumes")
+    data=$(getJSON "api/v1/persistentvolumes")
     [ $? -gt 0 ] && die "$data"
     declare -A pvsArr unboundPvsArr
     while IFS="=" read -r key value; do
@@ -224,66 +221,42 @@ mode_pvc() {
     CRIT_ERROR=0
     PVC_COUNT=0
 
-    data="$(getJSON "get nodes" "api/v1/nodes")"
+    data="$(getJSON "api/v1/nodes")"
     [ $? -gt 0 ] && die "$data"
     nodes=($(echo "$data" | jq -r ".items[].metadata.name"))
+    data=$(for node in "${nodes[@]}"; do getJSON "api/v1/nodes/$node/proxy/stats/summary"; done)
+    volumes=$(echo "$data" | jq -s '[.[].pods[].volume[]? | select(has("pvcRef")) | {name: .pvcRef.name, namespace: .pvcRef.namespace, capacityBytes, usedBytes, availableBytes, percentageUsed: (.usedBytes / .capacityBytes * 100) | round}] | sort_by(.name) | unique')
+    if [ "$NAMESPACE" ]; then
+        volumes=$(echo "$volumes" | jq "[.[] | select(.namespace==\"$NAMESPACE\")]")
+    fi
+    length=$(echo "$volumes" | jq length)
+    for (( n=0; n<length; n++ )); do
+        volume=$(echo "$volumes" | jq ".[$n]")
+        volume_name=$(echo "$volume" | jq -r '.namespace + "/" + .name')
+        volume_bytes_utilization=$(echo "$volume" | jq -r '.percentageUsed')
+        volume_bytes_capacity=$(echo "$volume" | jq -r '.capacityBytes')
+        volume_bytes_used=$(echo "$volume" | jq -r '.usedBytes')
 
-    for node in "${nodes[@]}"; do
-        data="$(getJSON "get nodes" "api/v1/nodes/$node/proxy/stats/summary")"
-        [ $? -gt 0 ] && die "$data"
-        pods=($(echo "$data" | jq -r ".pods[].podRef.name"))
-        for pod in "${pods[@]}"; do
-            pod_volumes="$(echo "$data" | jq -r ".pods[] | select(.podRef.name==\"$pod\") | .volume" 2>/dev/null)"
-            [ "$pod_volumes" == "null" ] && continue
-            for volumes in "${pod_volumes[@]}"; do
-                volumes_list="$(echo "$volumes" | jq -r ".[] | select(.pvcRef.name!=null)")"
-                volumes_namespace=$(echo "$volumes_list" | jq -r ".pvcRef.namespace" | uniq)
-                for pvc_volumes in "${volumes_list[@]}"; do
-                    [ -z "$pvc_volumes" ] && continue
-                    for volume_name in $(echo "$pvc_volumes" | jq -r ".name"); do
-                        #volume_bytes_available=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .availableBytes")
-                        volume_bytes_capacity=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .capacityBytes")
-                        volume_bytes_used=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .usedBytes")
-                        #volume_inodes_free=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .inodesFree")
-                        volume_inodes_used=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .inodesUsed")
-                        volume_inodes_capacity=$(echo "$pvc_volumes" | jq -r ". | select(.name==\"$volume_name\") | .inodes")
-                        volume_bytes_utilization=$(echo "100 * $volume_bytes_used / $volume_bytes_capacity" | bc)
-                        volume_inodes_utilization=$(echo "100 * $volume_inodes_used / $volume_inodes_capacity" | bc)
-
-                        ((PVC_COUNT++))
-
-                        if [ "$volume_bytes_utilization" -gt "$WARN" ] && [ "$volume_bytes_utilization" -lt "$CRIT" ]; then
-                             OUTPUT="${OUTPUT}High storage utilization on pvc $volume_name (namespace:$volumes_namespace): $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)\n"
-                            ((WARN_ERROR++))
-                        fi
-                        if [ "$volume_bytes_utilization" -gt "$CRIT" ]; then
-                             OUTPUT="${OUTPUT}Very high storage utilization on pvc $volume_name: $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)\n"
-                            ((CRIT_ERROR++))
-                        fi
-                        if [ "$volume_inodes_utilization" -gt "$WARN" ] && [ "$volume_inodes_utilization" -lt "$CRIT" ]; then
-                             OUTPUT="${OUTPUT}High inodes utilization on pvc $volume_name: $volume_inodes_utilization% ($volume_inodes_used/$volume_inodes_capacity)\n"
-                            ((WARN_ERROR++))
-                        fi
-                        if [ "$volume_inodes_utilization" -gt "$CRIT" ]; then
-                             OUTPUT="${OUTPUT}Very high inodes utilization on pvc $volume_name: $volume_inodes_utilization% ($volume_inodes_used/$volume_inodes_capacity)\n"
-                            ((CRIT_ERROR++))
-                        fi
-                    done
-                done
-            done
-        done
+        if [ "$volume_bytes_utilization" -gt "$WARN" ] && [ "$volume_bytes_utilization" -lt "$CRIT" ]; then
+            OUTPUT="${OUTPUT} High storage utilization on pvc $volume_name: $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)"
+            ((WARN_ERROR++))
+        fi
+        if [ "$volume_bytes_utilization" -gt "$CRIT" ]; then
+            OUTPUT="${OUTPUT} Very high storage utilization on pvc $volume_name: $volume_bytes_utilization% ($volume_bytes_used/$volume_bytes_capacity Bytes)"
+            ((CRIT_ERROR++))
+        fi
     done
 
     if [ "$WARN_ERROR" -eq "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
         echo "OK. No problems on $PVC_COUNT pvc"
     elif [ "$WARN_ERROR" -ne "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
-        echo "WARNING.\n${OUTPUT}"
+        echo "WARNING.${OUTPUT}"
         exit 1
     elif [ "$CRIT_ERROR" -ne "0" ]; then
-        echo "CRITICAL.\n${OUTPUT}"
+        echo "CRITICAL.${OUTPUT}"
         exit 2
     else
-        echo "ERROR.\n${OUTPUT}"
+        echo "ERROR.${OUTPUT}"
         exit 3
     fi
 }
@@ -296,7 +269,7 @@ mode_tls() {
     count_crit=0
     nowdate=$(date +%s)
 
-    fulldata=$(getJSON "get secrets $kubectl_ns" "api/v1$api_ns/secrets/")
+    fulldata=$(getJSON "api/v1$api_ns/secrets/")
     [ $? -gt 0 ] && die "$fulldata"
     data=$(echo "$fulldata" | \
            jq -r ".items[] | select (.type==\"kubernetes.io/tls\")")
@@ -368,7 +341,7 @@ mode_pods() {
     count_failed=0
     max_restart_count=0
     bad_container=""
-    data=$(getJSON "get pods $kubectl_ns" "api/v1$api_ns/pods/")
+    data=$(getJSON "api/v1$api_ns/pods/")
     [ $? -gt 0 ] && die "$data"
 
     if [ "$NAME" ]; then
@@ -448,7 +421,7 @@ mode_pods() {
 mode_deployments() {
     count_avail=0
     count_failed=0
-    rawdata=$(getJSON "get deployments $kubectl_ns" "apis/apps/v1$api_ns/deployments/")
+    rawdata=$(getJSON "apis/apps/v1$api_ns/deployments/")
     [ $? -gt 0 ] && die "$rawdata"
 
     # deflate the data
@@ -504,7 +477,7 @@ mode_deployments() {
 mode_daemonsets() {
     count_avail=0
     count_failed=0
-    data=$(getJSON "get ds $kubectl_ns" "apis/apps/v1$api_ns/daemonsets/")
+    data=$(getJSON "apis/apps/v1$api_ns/daemonsets/")
     [ $? -gt 0 ] && die "$data"
 
     if [ "$NAME" ]; then
@@ -565,7 +538,7 @@ mode_replicasets() {
     count_avail=0
     count_failed=0
 
-    data=$(getJSON "get rs $kubectl_ns" "apis/apps/v1$api_ns/replicasets/")
+    data=$(getJSON "apis/apps/v1$api_ns/replicasets/")
     [ $? -gt 0 ] && die "$data"
 
     if [ "$NAME" ]; then
@@ -625,7 +598,7 @@ mode_replicasets() {
 mode_statefulsets() {
     count_avail=0
     count_failed=0
-    data=$(getJSON "get statefulsets $kubectl_ns" "apis/apps/v1$api_ns/statefulsets/")
+    data=$(getJSON "apis/apps/v1$api_ns/statefulsets/")
     [ $? -gt 0 ] && die "$data"
 
     if [ "$NAME" ]; then
@@ -691,7 +664,7 @@ mode_jobs() {
     total_jobs=0
     declare -i total_failed_count=0
     declare -i job_fail_count
-    data=$(getJSON "get jobs $kubectl_ns" "apis/batch/v1$api_ns/jobs/")
+    data=$(getJSON "apis/batch/v1$api_ns/jobs/")
     [ $? -gt 0 ] && die "$data"
 
     if [ "$NAME" ]; then
