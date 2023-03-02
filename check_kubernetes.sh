@@ -219,7 +219,6 @@ mode_pvc() {
     CRIT=${CRIT:-90}
     WARN_ERROR=0
     CRIT_ERROR=0
-    PVC_COUNT=0
 
     data="$(getJSON "api/v1/nodes")"
     [ $? -gt 0 ] && die "$data"
@@ -248,7 +247,7 @@ mode_pvc() {
     done
 
     if [ "$WARN_ERROR" -eq "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
-        echo "OK. No problems on $PVC_COUNT pvc"
+        echo "OK. No problems on $length pvc"
     elif [ "$WARN_ERROR" -ne "0" ] && [ "$CRIT_ERROR" -eq "0" ]; then
         echo "WARNING.${OUTPUT}"
         exit 1

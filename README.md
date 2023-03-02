@@ -209,6 +209,14 @@ Services:
       vars.kube_mode = "tls"
       assign where "k8s-api" in host.vars.roles
     }
+
+    apply Service "k8s pvc" {
+      import "generic-service"
+      check_interval = 1h
+      check_command = "check-kubernetes"
+      vars.kube_mode = "pvc"
+      assign where "k8s-api" in host.vars.roles
+    }
     
     apply Service "k8s pods" {
       import "generic-service"
