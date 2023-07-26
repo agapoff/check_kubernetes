@@ -391,12 +391,13 @@ mode_pods() {
             else
                 ((count_failed++))
             fi
+            if [ "$restart_count" -ge "$CRIT" ]; then
+              OUTPUT="${OUTPUT}Container $bad_container in CRIT: $restart_count restarts.\n"
+              EXITCODE=2
+            fi
             if [ "$restart_count" -ge "$WARN" ]; then
-                OUTPUT="${OUTPUT}Container $bad_container: $restart_count restarts.\n"
+                OUTPUT="${OUTPUT}Container $bad_container in WARN: $restart_count restarts.\n"
                 EXITCODE=1
-                if [ "$restart_count" -ge "$CRIT" ]; then
-                    EXITCODE=2
-                fi
             fi
         done
     done
