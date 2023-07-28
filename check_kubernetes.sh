@@ -164,10 +164,10 @@ mode_apicert() {
     echo "APICERT expires in $d days"
     if [ "$d" -gt "$WARN" ]; then
         echo "APICERT is OK"
-    elif [ $d -le $WARN ] && [ $d -gt $CRIT ]; then
+    elif [ "$d" -le "$WARN" ] && [ $d -gt "$CRIT" ]; then
         echo "APICERT is in WARN"
         EXITCODE=1
-    elif [ $d -le $CRIT ]; then
+    elif [ "$d" -le "$CRIT" ]; then
         echo "APICERT is in CRIT"
         EXITCODE=2
     fi
