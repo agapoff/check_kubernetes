@@ -38,6 +38,7 @@ usage() {
 
 	Modes are:
 	  apiserver        Not for kubectl, should be used for each apiserver independently
+	  apicert          Check the apicert expiration date
 	  nodes            Check for active nodes
 	  daemonsets       Check for daemonsets readiness
 	  deployments      Check for deployments availability
@@ -146,6 +147,28 @@ mode_apiserver() {
     else
         data=$(echo "$data" | grep "\[\-\]")
         OUTPUT="CRITICAL. Kubernetes apiserver health is $data"
+        EXITCODE=2
+    fi
+}
+
+mode_apicert() {
+    if [ -z "$APISERVER" ]; then
+        die "Apiserver URL should be defined in this mode"
+    fi
+    APICERT=$(echo "$APISERVER" | awk -F "//" '{ print $2 }' | awk -F ":" '{ print $1 }')
+    APICERTDATE=$(echo | openssl s_client -connect "$APICERT":6443 2>/dev/null | openssl x509 -noout -dates | grep notAfter | sed -e 's#notAfter=##')
+    a=$(date -d "$APICERTDATE" +%s)
+    b=$(date +%s)
+    c=$((a-b))
+    d=$((c/3600/24))
+    echo "APICERT expires in $d days"
+    if [ "$d" -gt "$WARN" ]; then
+        echo "APICERT is OK"
+    elif [ $d -le $WARN ] && [ $d -gt $CRIT ]; then
+        echo "APICERT is in WARN"
+        EXITCODE=1
+    elif [ $d -le $CRIT ]; then
+        echo "APICERT is in CRIT"
         EXITCODE=2
     fi
 }
@@ -723,6 +746,7 @@ mode_jobs() {
 
 case "$MODE" in
     (apiserver) mode_apiserver ;;
+    (apicert) mode_apicert ;;
     (daemonsets) mode_daemonsets ;;
     (deployments) mode_deployments ;;
     (nodes) mode_nodes ;;
