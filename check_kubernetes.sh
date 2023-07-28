@@ -28,13 +28,13 @@ usage() {
 	                    - Pod restart count in pods mode; default is 30
 	                    - Job failed count in jobs mode; default is 1
 	                    - Pvc storage utilization; default is 80%
-                            - APICERT expiration days for apicert mode; default is 30
+	                    - API cert expiration days for apicert mode; default is 30
 	  -c CRIT          Critical threshold for
 	                    - Pod restart count (in pods mode); default is 150
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
 	                    - Pvc storage utilization; default is 90%
-                            - APICERT expiration days for apicert mode; default is 15
+	                    - API cert expiration days for apicert mode; default is 15
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
 	  -h               Show this help and exit
 
@@ -159,27 +159,24 @@ mode_apicert() {
     fi
     WARN=${WARN:-30}
     CRIT=${CRIT:-15}
-    APICERT=$(echo "$APISERVER" | awk -F "//" '{ print $2 }' | awk -F ":" '{ print $1 }')
-    APIPORT=$(echo "$APISERVER" | awk -F "//" '{ print $2 }' | awk -F ":" '{ print $2 }')
-    APIPORT=${APIPORT:=443}
-    timeout "$TIMEOUT" bash -c "</dev/tcp/$APICERT/$APIPORT" &>/dev/null
-    if [ $? -ne 0 ]; then
-        echo "APICERT is in UNKNOWN"
+    APIHOST=$(echo "$APISERVER" | awk -F[/:] '{print $4}')
+    APIPORT=$(echo "$APISERVER" | awk -F[/:] '{print $5}')
+    APIPORT=${APIPORT:-443}
+    enddate=$(echo | openssl s_client -connect "$APIHOST:$APIPORT" 2>/dev/null | openssl x509 -enddate -noout 2>/dev/null | sed 's/notAfter=//' | xargs -r -0 date +%s -d)
+    if [ -z "$enddate" ]; then
+        echo "API cert expiration date is UNKNOWN"
         exit 3
     fi
-    APICERTDATE=$(echo | openssl s_client -connect "$APICERT":"$APIPORT" 2>/dev/null | openssl x509 -noout -dates | grep notAfter | sed -e 's#notAfter=##')
-    a=$(date -d "$APICERTDATE" +%s)
-    b=$(date +%s)
-    c=$((a-b))
-    d=$((c/3600/24))
-    echo "APICERT expires in $d days"
-    if [ "$d" -gt "$WARN" ]  && [ "$d" -gt "$CRIT" ]; then
-        echo "APICERT is OK"
-    elif [ "$d" -le "$WARN" ] && [ $d -gt "$CRIT" ]; then
-        echo "APICERT is in WARN"
+    nowdate=$(date +%s)
+    diff=$((($enddate-$nowdate)/24/3600))
+    OUTPUT="API cert expires in $diff days"
+    if [ "$diff" -gt "$WARN" ]  && [ "$diff" -gt "$CRIT" ]; then
+        OUTPUT="OK. $OUTPUT"
+    elif [ "$diff" -le "$WARN" ] && [ "$diff" -gt "$CRIT" ]; then
+        OUTPUT="WARNING. $OUTPUT"
         EXITCODE=1
-    elif [ "$d" -le "$CRIT" ]; then
-        echo "APICERT is in CRIT"
+    elif [ "$diff" -le "$CRIT" ]; then
+        OUTPUT="CRITICAL. $OUTPUT"
         EXITCODE=2
     fi
 }

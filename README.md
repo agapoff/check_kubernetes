@@ -27,16 +27,19 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	                    - Pod restart count in pods mode; default is 30
 	                    - Job failed count in jobs mode; default is 1
 	                    - Pvc storage utilization; default is 80%
+	                    - API cert expiration days for apicert mode; default is 30
 	  -c CRIT          Critical threshold for
 	                    - Pod restart count (in pods mode); default is 150
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
 	                    - Pvc storage utilization; default is 90%
+	                    - API cert expiration days for apicert mode; default is 15
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
 	  -h               Show this help and exit
 
 	Modes are:
 	  apiserver        Not for kubectl, should be used for each apiserver independently
+	  apicert          Check the apicert expiration date
 	  nodes            Check for active nodes
 	  daemonsets       Check for daemonsets readiness
 	  deployments      Check for deployments availability
@@ -110,6 +113,10 @@ Check utilization if pvc (if consumes more than %):
 
     ./check_kubernetes.sh -m pvc
     CRITICAL. Very high storage utilization on pvc prometheus-data: 93% (86106636288/157459890176 Bytes)
+
+Check expiration date for API TLS certificate:
+    ./check_kubernetes.sh -m apicert -H https://<...>:6443 -T $TOKEN
+    OK. API cert expires in 278 days
 
 
 ## Brief mode (removed in v1.1.0)
