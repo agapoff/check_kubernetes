@@ -50,7 +50,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	  tls              Check for tls secrets expiration dates
 	  pvc              Check for pvc utilization
 	  unboundpvs       Check for unbound persistent volumes.
-	  components       Check for health of k8s components (Deprectaed in K8s 1.19+)
+	  components       Check for health of k8s components (Deprecated in K8s 1.19+)
 
 ## Examples:
 
@@ -66,7 +66,7 @@ Check whether all deployments are available using token:
 
 Check one definite deployment using kubectl:
 
-    ./check_kubernetes.sh -m deployments -H https://<...>:6443 -K /path/to/kube_config -N ingress-nginx -n nginx-ingress-controller
+    ./check_kubernetes.sh -m deployments -K /path/to/kube_config -N ingress-nginx -n nginx-ingress-controller
     OK. Deployment available
 
 Check nodes using kubectl with default kube config:
