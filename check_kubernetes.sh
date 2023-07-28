@@ -176,6 +176,9 @@ mode_apicert() {
     elif [ "$d" -le "$CRIT" ]; then
         echo "APICERT is in CRIT"
         EXITCODE=2
+    else
+        echo "APICERT is in UNKNOWN"
+        EXITCODE=3
     fi
 }
 
