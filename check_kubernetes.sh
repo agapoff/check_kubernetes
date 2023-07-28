@@ -38,7 +38,7 @@ usage() {
 
 	Modes are:
 	  apiserver        Not for kubectl, should be used for each apiserver independently
-    apicert          Check the apicert expiration date
+          apicert          Check the apicert expiration date
 	  nodes            Check for active nodes
 	  daemonsets       Check for daemonsets readiness
 	  deployments      Check for deployments availability
