@@ -28,16 +28,19 @@ usage() {
 	                    - Pod restart count in pods mode; default is 30
 	                    - Job failed count in jobs mode; default is 1
 	                    - Pvc storage utilization; default is 80%
+                            - APICERT expiration days for apicert mode; default is 30
 	  -c CRIT          Critical threshold for
 	                    - Pod restart count (in pods mode); default is 150
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
 	                    - Pvc storage utilization; default is 90%
+                            - APICERT expiration days for apicert mode; default is 15
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
 	  -h               Show this help and exit
 
 	Modes are:
 	  apiserver        Not for kubectl, should be used for each apiserver independently
+	  apicert          Check the apicert expiration date
 	  nodes            Check for active nodes
 	  daemonsets       Check for daemonsets readiness
 	  deployments      Check for deployments availability
@@ -146,6 +149,37 @@ mode_apiserver() {
     else
         data=$(echo "$data" | grep "\[\-\]")
         OUTPUT="CRITICAL. Kubernetes apiserver health is $data"
+        EXITCODE=2
+    fi
+}
+
+mode_apicert() {
+    if [ -z "$APISERVER" ]; then
+        die "Apiserver URL should be defined in this mode"
+    fi
+    WARN=${WARN:-30}
+    CRIT=${CRIT:-15}
+    APICERT=$(echo "$APISERVER" | awk -F "//" '{ print $2 }' | awk -F ":" '{ print $1 }')
+    APIPORT=$(echo "$APISERVER" | awk -F "//" '{ print $2 }' | awk -F ":" '{ print $2 }')
+    APIPORT=${APIPORT:=443}
+    timeout "$TIMEOUT" bash -c "</dev/tcp/$APICERT/$APIPORT" &>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "APICERT is in UNKNOWN"
+        exit 3
+    fi
+    APICERTDATE=$(echo | openssl s_client -connect "$APICERT":"$APIPORT" 2>/dev/null | openssl x509 -noout -dates | grep notAfter | sed -e 's#notAfter=##')
+    a=$(date -d "$APICERTDATE" +%s)
+    b=$(date +%s)
+    c=$((a-b))
+    d=$((c/3600/24))
+    echo "APICERT expires in $d days"
+    if [ "$d" -gt "$WARN" ]  && [ "$d" -gt "$CRIT" ]; then
+        echo "APICERT is OK"
+    elif [ "$d" -le "$WARN" ] && [ $d -gt "$CRIT" ]; then
+        echo "APICERT is in WARN"
+        EXITCODE=1
+    elif [ "$d" -le "$CRIT" ]; then
+        echo "APICERT is in CRIT"
         EXITCODE=2
     fi
 }
@@ -723,6 +757,7 @@ mode_jobs() {
 
 case "$MODE" in
     (apiserver) mode_apiserver ;;
+    (apicert) mode_apicert ;;
     (daemonsets) mode_daemonsets ;;
     (deployments) mode_deployments ;;
     (nodes) mode_nodes ;;
