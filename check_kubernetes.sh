@@ -156,7 +156,9 @@ mode_apicert() {
         die "Apiserver URL should be defined in this mode"
     fi
     APICERT=$(echo "$APISERVER" | awk -F "//" '{ print $2 }' | awk -F ":" '{ print $1 }')
-    APICERTDATE=$(echo | openssl s_client -connect "$APICERT":6443 2>/dev/null | openssl x509 -noout -dates | grep notAfter | sed -e 's#notAfter=##')
+    APIPORT=$(echo "$APISERVER" | awk -F "//" '{ print $2 }' | awk -F ":" '{ print $2 }')
+    set ${APIPORT:=443}
+    APICERTDATE=$(echo | openssl s_client -connect "$APICERT":"$APIPORT" 2>/dev/null | openssl x509 -noout -dates | grep notAfter | sed -e 's#notAfter=##')
     a=$(date -d "$APICERTDATE" +%s)
     b=$(date +%s)
     c=$((a-b))
