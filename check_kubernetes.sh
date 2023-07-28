@@ -162,6 +162,11 @@ mode_apicert() {
     APICERT=$(echo "$APISERVER" | awk -F "//" '{ print $2 }' | awk -F ":" '{ print $1 }')
     APIPORT=$(echo "$APISERVER" | awk -F "//" '{ print $2 }' | awk -F ":" '{ print $2 }')
     APIPORT=${APIPORT:=443}
+    timeout "$TIMEOUT" bash -c "</dev/tcp/$APICERT/$APIPORT" &>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "APICERT is in UNKNOWN"
+        exit 3
+    fi
     APICERTDATE=$(echo | openssl s_client -connect "$APICERT":"$APIPORT" 2>/dev/null | openssl x509 -noout -dates | grep notAfter | sed -e 's#notAfter=##')
     a=$(date -d "$APICERTDATE" +%s)
     b=$(date +%s)
@@ -176,9 +181,6 @@ mode_apicert() {
     elif [ "$d" -le "$CRIT" ]; then
         echo "APICERT is in CRIT"
         EXITCODE=2
-    else
-        echo "APICERT is in UNKNOWN"
-        EXITCODE=3
     fi
 }
 
