@@ -36,7 +36,7 @@ usage() {
 	                    - Pvc storage utilization; default is 90%
 	                    - API cert expiration days for apicert mode; default is 15
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
-      -v               Show current Version
+	  -v               Show current Version
 	  -h               Show this help and exit
 
 	Modes are:
@@ -57,7 +57,7 @@ usage() {
     exit 2
 }
 
-VERSION="v1.3.0"
+VERSION="v1.3.1"
 
 TIMEOUT=15
 unset NAME
