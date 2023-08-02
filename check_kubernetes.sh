@@ -12,7 +12,7 @@
 usage() {
     cat <<- EOF
 	Usage $0 [-m <MODE>|-h] [-o <TIMEOUT>] [-H <APISERVER> [-T <TOKEN>|-t <TOKENFILE>]] [-K <KUBE_CONFIG>]
-	         [-N <NAMESPACE>] [-n <NAME>] [-w <WARN>] [-c <CRIT>]
+	         [-N <NAMESPACE>] [-n <NAME>] [-w <WARN>] [-c <CRIT>] [-v]
 
 	Options are:
 	  -m MODE          Which check to perform
@@ -36,6 +36,7 @@ usage() {
 	                    - Pvc storage utilization; default is 90%
 	                    - API cert expiration days for apicert mode; default is 15
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
+	  -v               Show current Version
 	  -h               Show this help and exit
 
 	Modes are:
@@ -56,6 +57,8 @@ usage() {
     exit 2
 }
 
+VERSION="v1.3.1"
+
 TIMEOUT=15
 unset NAME
 
@@ -64,7 +67,7 @@ die() {
     exit "${2:-2}"
 }
 
-while getopts ":m:M:H:T:t:K:N:n:o:c:w:h" arg; do
+while getopts ":m:M:H:T:t:K:N:n:o:c:w:h:v" arg; do
     case $arg in
         h) usage ;;
         m) MODE="$OPTARG" ;;
@@ -78,6 +81,7 @@ while getopts ":m:M:H:T:t:K:N:n:o:c:w:h" arg; do
         n) NAME="$OPTARG" ;;
         w) WARN="$OPTARG" ;;
         c) CRIT="$OPTARG" ;;
+        v) echo "check_kubernetes.sh Version: $VERSION" && exit 0 ;;
         *) usage ;;
     esac
 done
