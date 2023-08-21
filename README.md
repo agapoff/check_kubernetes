@@ -11,7 +11,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 ## Script usage
 
 	Usage $0 [-m <MODE>|-h] [-o <TIMEOUT>] [-H <APISERVER> [-T <TOKEN>|-t <TOKENFILE>]] [-K <KUBE_CONFIG>]
-	         [-N <NAMESPACE>] [-n <NAME>] [-w <WARN>] [-c <CRIT>]
+	         [-N <NAMESPACE>] [-n <NAME>] [-w <WARN>] [-c <CRIT>] [-v]
 
 	Options are:
 	  -m MODE          Which check to perform
@@ -35,6 +35,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	                    - Pvc storage utilization; default is 90%
 	                    - API cert expiration days for apicert mode; default is 15
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
+	  -v               Show current Version
 	  -h               Show this help and exit
 
 	Modes are:
