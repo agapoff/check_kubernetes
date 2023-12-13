@@ -722,10 +722,10 @@ mode_jobs() {
         fi
         for job in "${jobs[@]}"; do
             ((total_jobs++))
-            job_fail_count=$(echo "$data" | jq -r ".items[] | select(.status.failed and .metadata.name==\"$job\") | .status.failed")
+            job_fail_count=$(echo "$data" | jq -r ".items[] | select(.metadata.namespace==\"$ns\" and .status.failed and .metadata.name==\"$job\") | .status.failed")
             total_failed_count="$((total_failed_count+job_fail_count))"
             if [ "$job_fail_count" -ge "${WARN}" ]; then
-                OUTPUT="${OUTPUT}Job $job has $job_fail_count failures\n"
+                OUTPUT="${OUTPUT}Job $ns/$job has $job_fail_count failures\n"
                 EXITCODE=1
             elif [ "$job_fail_count" -ge "${CRIT}" ]; then
                 EXITCODE=2
