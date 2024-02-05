@@ -373,7 +373,6 @@ mode_pods() {
     count_ready=0
     count_succeeded=0
     count_failed=0
-    max_restart_count=0
     bad_container=""
     data=$(getJSON "api/v1$api_ns/pods/")
     [ $? -gt 0 ] && die "$data"
@@ -406,6 +405,7 @@ mode_pods() {
                           jq -r "select(.metadata.name==\"$pod\") | \
                                  .status.containerStatuses[]?.name"))
             for container in "${containers[@]}"; do
+                max_restart_count=0
                 restart_count=$(echo "$nsdata" | \
                                 jq -r "select(.metadata.name==\"$pod\") | \
                                        .status.containerStatuses[] | \
