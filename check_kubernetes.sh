@@ -1,5 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC2181,SC2207,SC2199,SC2076
+#
 
 ##########################
 # Perform checks against Kubernetes API or with tab help of kubectl utility
