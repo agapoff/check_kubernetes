@@ -30,6 +30,7 @@ usage() {
 	                    - Pvc storage utilization; default is 80%
 	                    - API cert expiration days for apicert mode; default is 30
 	  -c CRIT          Critical threshold for
+	                    - TLS expiration days for TLS mode; default is 0
 	                    - Pod restart count (in pods mode); default is 150
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
@@ -297,6 +298,7 @@ mode_pvc() {
 
 mode_tls() {
     WARN=${WARN:-30}
+    CRIT=${CRIT:-0}
 
     count_ok=0
     count_warn=0
@@ -337,6 +339,10 @@ mode_tls() {
                 ((count_crit++))
                 EXITCODE=2
                 OUTPUT="$OUTPUT $ns/$cert is expired."
+            elif [ "$diff" -le "$((CRIT*24*3600))" ]; then
+                ((count_crit++))
+                EXITCODE=2
+                OUTPUT="$OUTPUT $ns/$cert is about to expire in $((diff/3600/24)) days."
             elif [ "$diff" -le "$((WARN*24*3600))" ]; then
                 ((count_warn++))
                 if [ "$EXITCODE" == 0 ]; then
