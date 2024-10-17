@@ -30,7 +30,7 @@ usage() {
 	                    - Pvc storage utilization; default is 80%
 	                    - API cert expiration days for apicert mode; default is 30
 	  -c CRIT          Critical threshold for
-	                    - TLS expiration days for TLS mode; default is 5
+	                    - TLS expiration days for TLS mode; default is 0
 	                    - Pod restart count (in pods mode); default is 150
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
@@ -298,7 +298,7 @@ mode_pvc() {
 
 mode_tls() {
     WARN=${WARN:-30}
-    CRIT=${CRIT:-5}
+    CRIT=${CRIT:-0}
 
     count_ok=0
     count_warn=0
