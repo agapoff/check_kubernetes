@@ -58,7 +58,7 @@ usage() {
     exit 2
 }
 
-VERSION="v1.3.1"
+VERSION="v1.3.2"
 
 TIMEOUT=15
 unset NAME
@@ -660,15 +660,17 @@ mode_statefulsets() {
                             jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
                                    .metadata.name"))
         fi
-        for rs in "${statefulsets[@]}"; do
+        for sts in "${statefulsets[@]}"; do
             declare -A statusArr
             while IFS="=" read -r key value; do
                statusArr[$key]="$value"
             done < <(echo "$data" | \
-                     jq -r ".items[] | select(.metadata.namespace==\"$ns\" and .metadata.name==\"$rs\") | \
+                     jq -r ".items[] | select(.metadata.namespace==\"$ns\" and .metadata.name==\"$sts\") | \
                             .status | to_entries | map(\"\(.key)=\(.value)\") | .[]")
-            OUTPUT="${OUTPUT}Statefulset $ns/$rs ${statusArr[readyReplicas]}/${statusArr[currentReplicas]} ready\n"
-            if [ "${statusArr[readyReplicas]}" != "${statusArr[currentReplicas]}" ]; then
+            if [ "$EXITCODE" == 0 ]; then
+                OUTPUT="Statefulset $ns/$sts ${statusArr[availableReplicas]}/${statusArr[currentReplicas]} ready\n"
+            fi
+            if [ "${statusArr[availableReplicas]}" != "${statusArr[currentReplicas]}" ]; then
                 ((count_failed++))
                 EXITCODE=2
             else
