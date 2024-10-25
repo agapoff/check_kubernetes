@@ -26,14 +26,14 @@ usage() {
 	  -w WARN          Warning threshold for
 	                    - TLS expiration days for TLS mode; default is 30
 	                    - Pod restart count in pods mode; default is 30
-	                    - MaxPods Pod count on each node; default is 90%
+	                    - MaxPods Pod count on each system; default is 90%
 	                    - Job failed count in jobs mode; default is 1
 	                    - Pvc storage utilization; default is 80%
 	                    - API cert expiration days for apicert mode; default is 30
 	  -c CRIT          Critical threshold for
 	                    - TLS expiration days for TLS mode; default is 0
 	                    - Pod restart count (in pods mode); default is 150
-	                    - MaxPods Pod count on each node; default is 95%
+	                    - MaxPods Pod count on each system; default is 95%
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
 	                    - Pvc storage utilization; default is 90%
@@ -50,7 +50,7 @@ usage() {
 	  deployments      Check for deployments availability
 	  jobs             Check for failed jobs
 	  pods             Check for restart count of containters in the pods
-	  maxpods          Check the maxPods value and detect high pod usage on each system
+	  maxpods          Check the maxPods value and detect high pod count on each system
 	  replicasets      Check for replicasets readiness
 	  statefulsets     Check for statefulsets readiness
 	  tls              Check for tls secrets expiration dates
@@ -386,8 +386,6 @@ mode_maxpods() {
       currentpods=$(getJSON "api/v1/pods" | jq '[.items[] | select(.spec.nodeName=="'"$m"'")] | length')
       maxpods_percent=$((currentpods * 100 / maxpods))
 
-      echo "maxpods_percent: $maxpods_percent%"
-
       if [ "$maxpods_percent" -ge "$WARN" ]
       then
         EXITCODE=1
@@ -397,16 +395,16 @@ mode_maxpods() {
         fi
       fi
 
-    if [ $EXITCODE = 0 ]
-    then
-      echo -e "Pod count on each system is OK\n"
-    elif [ $EXITCODE = 1 ]
-    then
-      echo -e "WARNING. Pod count is $maxpods_percent% on $m\n"
-    elif [ $EXITCODE = 2 ]
-    then
-      echo -e "CRITICAL. Pod count is $maxpods_percent% on $m\n"
-    fi
+      if [ $EXITCODE = 0 ]
+      then
+        echo -e "Pod count are OK\n"
+      elif [ $EXITCODE = 1 ]
+      then
+        echo -e "WARNING. Pod count is $maxpods_percent% on $m\n"
+      elif [ $EXITCODE = 2 ]
+      then
+        echo -e "CRITICAL. Pod count is $maxpods_percent% on $m\n"
+      fi
     done
 }
 
