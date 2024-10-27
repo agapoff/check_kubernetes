@@ -379,6 +379,7 @@ mode_maxpods() {
     data="$(getJSON "api/v1/nodes")"
     [ $? -gt 0 ] && die "$data"
     k8smembers=$(echo "$data" | jq -r ".items[] | .metadata.name" | tr -d '"')
+    maxpods_array=("")
 
     for m in $k8smembers
     do
@@ -386,26 +387,30 @@ mode_maxpods() {
       currentpods=$(getJSON "api/v1/pods" | jq '[.items[] | select(.spec.nodeName=="'"$m"'")] | length')
       maxpods_percent=$((currentpods * 100 / maxpods))
 
+      maxpods_all+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $m;")
+
       if [ "$maxpods_percent" -ge "$WARN" ]
       then
         EXITCODE=1
+        maxpods_warning+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $m;")
         if [ "$maxpods_percent" -ge "$CRIT" ]
         then
           EXITCODE=2
+          maxpods_critical+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $m;")
         fi
       fi
-
-      if [ $EXITCODE = 0 ]
-      then
-        echo -e "Pod count are OK\n"
-      elif [ $EXITCODE = 1 ]
-      then
-        echo -e "WARNING. Pod count is $maxpods_percent% on $m\n"
-      elif [ $EXITCODE = 2 ]
-      then
-        echo -e "CRITICAL. Pod count is $maxpods_percent% on $m\n"
-      fi
     done
+
+    if [ $EXITCODE = 0 ]
+    then
+      echo -e "OK. ${maxpods_all[@]}"
+    elif [ $EXITCODE = 1 ]
+    then
+      echo -e "WARNING. ${maxpods_warning[@]}\n\nOverview: ${maxpods_all[@]}"
+    elif [ $EXITCODE = 2 ]
+    then
+      echo -e "CRITICAL. ${maxpods_critical[@]}\n\nOverview: ${maxpods_all[@]}"
+    fi
 }
 
 mode_pods() {
