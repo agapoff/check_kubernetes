@@ -176,7 +176,7 @@ mode_apicert() {
         exit 3
     fi
     nowdate=$(date +%s)
-    diff=$((($enddate-$nowdate)/24/3600))
+    diff=$(((enddate-nowdate)/24/3600))
     OUTPUT="API cert expires in $diff days"
     if [ "$diff" -gt "$WARN" ]  && [ "$diff" -gt "$CRIT" ]; then
         OUTPUT="OK. $OUTPUT"
@@ -378,38 +378,34 @@ mode_maxpods() {
 
     data="$(getJSON "api/v1/nodes")"
     [ $? -gt 0 ] && die "$data"
-    k8smembers=$(echo "$data" | jq -r ".items[] | .metadata.name" | tr -d '"')
-    maxpods_array=("")
+    pods="$(getJSON "api/v1/pods")"
+    [ $? -gt 0 ] && die "$pods"
+    nodes=($(echo "$data" | jq -r ".items[].metadata.name"))
 
-    for m in $k8smembers
-    do
-      maxpods=$(getJSON "api/v1/nodes/$m" | jq ".status.capacity.pods" | tr -d '"')
-      currentpods=$(getJSON "api/v1/pods" | jq '[.items[] | select(.spec.nodeName=="'"$m"'")] | length')
-      maxpods_percent=$((currentpods * 100 / maxpods))
+    for node in "${nodes[@]}"; do
+        maxpods="$(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$node\") | \
+                                        .status.capacity.pods")"
+        currentpods="$(echo "$pods" | jq -r "[.items[] | select(.spec.nodeName==\"$node\")] | length")"
+        maxpods_percent=$((currentpods * 100 / maxpods))
 
-      maxpods_all+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $m;")
+        maxpods_all+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $node;")
 
-      if [ "$maxpods_percent" -ge "$WARN" ]
-      then
-        EXITCODE=1
-        maxpods_warning+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $m;")
-        if [ "$maxpods_percent" -ge "$CRIT" ]
-        then
-          EXITCODE=2
-          maxpods_critical+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $m;")
+        if [ "$maxpods_percent" -ge "$WARN" ]; then
+            EXITCODE=1
+            maxpods_warning+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $node;")
+            if [ "$maxpods_percent" -ge "$CRIT" ]; then
+                EXITCODE=2
+                maxpods_critical+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $node;")
+            fi
         fi
-      fi
     done
 
-    if [ $EXITCODE = 0 ]
-    then
-      echo -e "OK. ${maxpods_all[@]}"
-    elif [ $EXITCODE = 1 ]
-    then
-      echo -e "WARNING. ${maxpods_warning[@]}\n\nOverview: ${maxpods_all[@]}"
-    elif [ $EXITCODE = 2 ]
-    then
-      echo -e "CRITICAL. ${maxpods_critical[@]}\n\nOverview: ${maxpods_all[@]}"
+    if [ $EXITCODE = 0 ]; then
+        echo -e "OK." "${maxpods_all[@]}"
+    elif [ $EXITCODE = 1 ]; then
+        echo -e "WARNING." "${maxpods_warning[@]}" "\n\nOverview:" "${maxpods_all[@]}"
+    elif [ $EXITCODE = 2 ]; then
+        echo -e "CRITICAL." "${maxpods_critical[@]}" "\n\nOverview:" "${maxpods_all[@]}"
     fi
 }
 
@@ -610,9 +606,7 @@ mode_daemonsets() {
             fi
         fi
     else
-        if [ $count_failed = 1 ]; then
-            OUTPUT="$OUTPUT"
-        else
+        if [ $count_failed -ne 1 ]; then
             OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
         fi
     fi
@@ -671,9 +665,7 @@ mode_replicasets() {
             fi
         fi
     else
-        if [ $count_failed = 1 ]; then
-            OUTPUT="$OUTPUT"
-        else
+        if [ $count_failed -ne 1 ]; then
             OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
         fi
     fi
@@ -735,9 +727,7 @@ mode_statefulsets() {
             fi
         fi
     else
-        if [ $count_failed = 1 ]; then
-            OUTPUT="$OUTPUT"
-        else
+        if [ $count_failed -ne 1 ]; then
             OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
         fi
     fi
@@ -825,6 +815,6 @@ case "$MODE" in
     (*) usage ;;
 esac
 
-printf "$OUTPUT"
+echo -e "$OUTPUT"
 
-exit $EXITCODE
+exit "$EXITCODE"
