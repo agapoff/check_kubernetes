@@ -26,12 +26,14 @@ usage() {
 	  -w WARN          Warning threshold for
 	                    - TLS expiration days for TLS mode; default is 30
 	                    - Pod restart count in pods mode; default is 30
+	                    - MaxPods Pod count on each system; default is 90%
 	                    - Job failed count in jobs mode; default is 1
 	                    - Pvc storage utilization; default is 80%
 	                    - API cert expiration days for apicert mode; default is 30
 	  -c CRIT          Critical threshold for
 	                    - TLS expiration days for TLS mode; default is 0
 	                    - Pod restart count (in pods mode); default is 150
+	                    - MaxPods Pod count on each system; default is 95%
 	                    - Unbound Persistent Volumes in unboundpvs mode; default is 5
 	                    - Job failed count in jobs mode; default is 2
 	                    - Pvc storage utilization; default is 90%
@@ -48,6 +50,7 @@ usage() {
 	  deployments      Check for deployments availability
 	  jobs             Check for failed jobs
 	  pods             Check for restart count of containters in the pods
+	  maxpods          Check the maxPods value and detect high pod count on each system
 	  replicasets      Check for replicasets readiness
 	  statefulsets     Check for statefulsets readiness
 	  tls              Check for tls secrets expiration dates
@@ -58,7 +61,7 @@ usage() {
     exit 2
 }
 
-VERSION="v1.3.2"
+VERSION="v1.4.0"
 
 TIMEOUT=15
 unset NAME
@@ -366,6 +369,47 @@ mode_tls() {
                 OUTPUT="OK. TLS secret is OK"
             fi
         fi
+    fi
+}
+
+mode_maxpods() {
+    WARN=${WARN:-90}
+    CRIT=${CRIT:-95}
+
+    data="$(getJSON "api/v1/nodes")"
+    [ $? -gt 0 ] && die "$data"
+    k8smembers=$(echo "$data" | jq -r ".items[] | .metadata.name" | tr -d '"')
+    maxpods_array=("")
+
+    for m in $k8smembers
+    do
+      maxpods=$(getJSON "api/v1/nodes/$m" | jq ".status.capacity.pods" | tr -d '"')
+      currentpods=$(getJSON "api/v1/pods" | jq '[.items[] | select(.spec.nodeName=="'"$m"'")] | length')
+      maxpods_percent=$((currentpods * 100 / maxpods))
+
+      maxpods_all+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $m;")
+
+      if [ "$maxpods_percent" -ge "$WARN" ]
+      then
+        EXITCODE=1
+        maxpods_warning+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $m;")
+        if [ "$maxpods_percent" -ge "$CRIT" ]
+        then
+          EXITCODE=2
+          maxpods_critical+=("Pod usage is $maxpods_percent% (Pods: $currentpods, Limit: $maxpods) on $m;")
+        fi
+      fi
+    done
+
+    if [ $EXITCODE = 0 ]
+    then
+      echo -e "OK. ${maxpods_all[@]}"
+    elif [ $EXITCODE = 1 ]
+    then
+      echo -e "WARNING. ${maxpods_warning[@]}\n\nOverview: ${maxpods_all[@]}"
+    elif [ $EXITCODE = 2 ]
+    then
+      echo -e "CRITICAL. ${maxpods_critical[@]}\n\nOverview: ${maxpods_all[@]}"
     fi
 }
 
@@ -772,6 +816,7 @@ case "$MODE" in
     (nodes) mode_nodes ;;
     (unboundpvs) mode_unboundpvs ;;
     (pods) mode_pods ;;
+    (maxpods) mode_maxpods ;;
     (replicasets) mode_replicasets ;;
     (statefulsets) mode_statefulsets ;;
     (tls) mode_tls ;;
