@@ -5,8 +5,7 @@
 # Perform checks against Kubernetes API or with tab help of kubectl utility
 # Designed for usage with Nagios, Icinga, Zabbix, Shinken... Whatever.
 #
-# 2018/06/28 Vitaly Agapov <v.agapov@quotix.com>
-# 2020 Roosembert Palacios <roosemberth@posteo.ch>
+# 2018/06/28 Vitaly Agapov <v.agapov@fxpro.com>
 ##########################
 
 usage() {
