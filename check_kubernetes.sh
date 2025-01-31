@@ -705,7 +705,7 @@ mode_statefulsets() {
             if [ "$EXITCODE" == 0 ]; then
                 OUTPUT="Statefulset $ns/$sts ${statusArr[availableReplicas]}/${statusArr[currentReplicas]} ready\n"
             fi
-            if [ "${statusArr[availableReplicas]}" != "${statusArr[currentReplicas]}" ]; then
+            if [ "${statusArr[replicas]}" -gt 0 ] && [ "${statusArr[availableReplicas]}" != "${statusArr[currentReplicas]}" ]; then
                 ((count_failed++))
                 EXITCODE=2
             else
