@@ -21,7 +21,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	  -K KUBE_CONFIG   Path to kube-config file for kubectl utility
 	  -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used
 	  -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked
-    -E EXCLUDENS     Optional exclution of Namespaces as List seperated by comma. Example: -E dynatrace,trivy,version-report
+    	  -E EXCLUDENS     Optional exclution of Namespaces as List seperated by comma. Example: -E dynatrace,trivy,version-report
 	  -o TIMEOUT       Timeout in seconds; default is 15
 	  -w WARN          Warning threshold for
 	                    - TLS expiration days for TLS mode; default is 30
