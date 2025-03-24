@@ -21,6 +21,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	  -K KUBE_CONFIG   Path to kube-config file for kubectl utility
 	  -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used
 	  -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked
+    -E EXCLUDENS     Optional exclution of Namespaces as List seperated by comma. Example: -E dynatrace,trivy,version-report
 	  -o TIMEOUT       Timeout in seconds; default is 15
 	  -w WARN          Warning threshold for
 	                    - TLS expiration days for TLS mode; default is 30
@@ -95,6 +96,15 @@ Check statefulsets (compare number of desired and number of ready pods):
     ./check_kubernetes.sh -m statefulsets -K ~/.kube/cluster -N monitoring
     OK. Statefulset monitoring/node-exporter 5/5 ready
 
+Check pods without excluded namespaces and with excluded namespaces:
+
+    ./check_kubernetes.sh -m pods -K ~/.kube/cluster -c 5 -w 2
+    WARNING. 115 pods ready, 5 pods succeeded, 0 pods not ready
+    Container dynatrace/dynatrace-webhook-5cd7989989-p2m2f/webhook: 3 restarts.
+
+    ./check_kubernetes.sh -m pods -K ~/.kube/cluster -E dynatrace,version-report,kube-enforce -c 5 -w 2
+    OK. 92 pods ready, 1 pods succeeded, 0 pods not ready
+
 Check TLS certs:
 
     ./check_kubernetes.sh -m tls -H https://<...>:6443 -T $TOKEN -N kube-system
@@ -158,6 +168,7 @@ Command:
         "-K" = "$kube_config$"
         "-N" = "$kube_ns$"
         "-n" = "$kube_name$"
+        "-E" = "$kube_excludens$"
         "-w" = "$kube_warn$"
         "-c" = "$kube_crit$"
       }
