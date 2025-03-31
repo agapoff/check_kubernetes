@@ -322,10 +322,10 @@ mode_tls() {
 
     if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
         namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${excludednamespaces}" ))
-    elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
+    elif [ "$NAME" ] && [ "$EXCLUDENS" ]; then
         namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name!=\"$NAME\") | \
                                             .metadata.namespace" | sort -u | grep -Ev "${excludednamespaces}"))
-    elif [ "$NAME" ] && [ -z ${EXLUDENS+x} ]; then
+    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
         namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name!=\"$NAME\") | \
                                             .metadata.namespace" | sort -u))
     else
