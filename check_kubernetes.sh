@@ -102,12 +102,6 @@ fi
 
 command -v jq &>/dev/null || die "CRITICAL: jq is required"
 
-# Convert comma-seperated strings after -E Flag if set to an array and to an one-line string to use it later as regex
-if [ "$EXCLUDENS" ]; then
-        IFS=',' read -r -a exns <<< "$EXCLUDENS"
-        excludednamespaces=$( IFS=$'|'; echo "${exns[*]}" )
-fi
-
 getJSON() {
     api_path=$1
 
@@ -321,10 +315,10 @@ mode_tls() {
            jq -r ".items[] | select (.type==\"kubernetes.io/tls\")")
 
     if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${excludednamespaces}" ))
+        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
     elif [ "$NAME" ] && [ "$EXCLUDENS" ]; then
         namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name!=\"$NAME\") | \
-                                            .metadata.namespace" | sort -u | grep -Ev "${excludednamespaces}"))
+                                            .metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}"))
     elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
         namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name!=\"$NAME\") | \
                                             .metadata.namespace" | sort -u))
@@ -435,13 +429,13 @@ mode_pods() {
     [ $? -gt 0 ] && die "$data"
 
     if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${excludednamespaces}" ))
+        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
     elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
         namespaces=($(echo "$data" | \
                       jq -r ".items[] | select(.metadata.labels.app==\"$NAME\") | \
                              .metadata.namespace" | \
-                      sort -u | grep -Ev "${excludednamespaces}"))
-    elif [ "$NAME" ] && [ -z ${EXLUDENS+x} ]; then
+                      sort -u | grep -Ev "${EXCLUDENS//,/|}"))
+    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
         namespaces=($(echo "$data" | \
                       jq -r ".items[] | select(.metadata.labels.app==\"$NAME\") | \
                              .metadata.namespace" | \
@@ -526,11 +520,11 @@ mode_deployments() {
     data="$(echo "$rawdata" | jq -r '.items[] | {name: .metadata.name, namespace: .metadata.namespace, status: .status.conditions}')"
 
     if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".namespace" | sort -u | grep -Ev "${excludednamespaces}" ))
+        namespaces=($(echo "$data" | jq -r ".namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
     elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
         namespaces=($(echo "$data" | jq -r "select(.name==\"$NAME\") | \
-                                            .namespace" | sort -u | grep -Ev "${excludednamespaces}"))
-    elif [ "$NAME" ] && [ -z ${EXLUDENS+x} ]; then
+                                            .namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}"))
+    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
         namespaces=($(echo "$data" | jq -r "select(.name==\"$NAME\") | \
                                             .namespace" | sort -u))
     else
@@ -584,11 +578,11 @@ mode_daemonsets() {
     [ $? -gt 0 ] && die "$data"
 
     if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${excludednamespaces}" ))
+        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
     elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
         namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name!=\"$NAME\") | \
-                                            .metadata.namespace" | sort -u | grep -Ev "${excludednamespaces}"))
-    elif [ "$NAME" ] && [ -z ${EXLUDENS+x} ]; then
+                                            .metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}"))
+    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
         namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name!=\"$NAME\") | \
                                             .metadata.namespace" | sort -u))
     else
@@ -648,13 +642,13 @@ mode_replicasets() {
     [ $? -gt 0 ] && die "$data"
 
     if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${excludednamespaces}" ))
+        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
     elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
         namespaces=($(echo "$data" | \
                       jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
                              .metadata.namespace" | \
-                      sort -u | grep -Ev "${excludednamespaces}"))
-    elif [ "$NAME" ] && [ -z ${EXLUDENS+x} ]; then
+                      sort -u | grep -Ev "${EXCLUDENS//,/|}"))
+    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
         namespaces=($(echo "$data" | \
                       jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
                              .metadata.namespace" | \
@@ -713,13 +707,13 @@ mode_statefulsets() {
     [ $? -gt 0 ] && die "$data"
 
     if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${excludednamespaces}" ))
+        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
     elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
         namespaces=($(echo "$data" | \
                       jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
                              .metadata.namespace" | \
-                      sort -u | grep -Ev "${excludednamespaces}"))
-    elif [ "$NAME" ] && [ -z ${EXLUDENS+x} ]; then
+                      sort -u | grep -Ev "${EXCLUDENS//,/|}"))
+    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
         namespaces=($(echo "$data" | \
                       jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
                              .metadata.namespace" | \
@@ -786,13 +780,13 @@ mode_jobs() {
     [ $? -gt 0 ] && die "$data"
 
     if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${excludednamespaces}" ))
+        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
     elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
         namespaces=($(echo "$data" | \
                       jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
                              .metadata.namespace" | \
-                      sort -u | grep -Ev "${excludednamespaces}"))
-    elif [ "$NAME" ] && [ -z ${EXLUDENS+x} ]; then
+                      sort -u | grep -Ev "${EXCLUDENS//,/|}"))
+    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
         namespaces=($(echo "$data" | \
                       jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
                              .metadata.namespace" | \
