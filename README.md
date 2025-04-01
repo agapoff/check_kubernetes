@@ -11,7 +11,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 ## Script usage
 
 	Usage $0 [-m <MODE>|-h] [-o <TIMEOUT>] [-H <APISERVER> [-T <TOKEN>|-t <TOKENFILE>]] [-K <KUBE_CONFIG>]
-	         [-N <NAMESPACE>] [-n <NAME>] [-w <WARN>] [-c <CRIT>] [-v]
+	         [-N <NAMESPACE>] [-n <NAME>] [-r <EXCLUDE>] [-E <EXCLUDENS>] [-w <WARN>] [-c <CRIT>] [-v]
 
 	Options are:
 	  -m MODE          Which check to perform
@@ -21,7 +21,8 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	  -K KUBE_CONFIG   Path to kube-config file for kubectl utility
 	  -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used
 	  -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked
-	  -E EXCLUDENS     Optional exclusion of Namespaces as List seperated by comma. Example: -E dynatrace,trivy,version-report
+	  -e EXCLUDE       Optional exclusion of the objects names as a list of patterms seperated by comma. Example: -e redis,^testpod
+	  -E EXCLUDENS     Optional exclusion of namespaces as a list of patterms seperated by comma. Example: -E test,^kube,^version-report$
 	  -o TIMEOUT       Timeout in seconds; default is 15
 	  -w WARN          Warning threshold for
 	                    - TLS expiration days for TLS mode; default is 30

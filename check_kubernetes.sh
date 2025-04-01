@@ -11,7 +11,7 @@
 usage() {
     cat <<- EOF
 	Usage $0 [-m <MODE>|-h] [-o <TIMEOUT>] [-H <APISERVER> [-T <TOKEN>|-t <TOKENFILE>]] [-K <KUBE_CONFIG>]
-	         [-N <NAMESPACE>] [-n <NAME>] [-E <EXCLUDENS>] [-w <WARN>] [-c <CRIT>] [-v]
+	         [-N <NAMESPACE>] [-n <NAME>] [-r <EXCLUDE>] [-E <EXCLUDENS>] [-w <WARN>] [-c <CRIT>] [-v]
 
 	Options are:
 	  -m MODE          Which check to perform
@@ -20,8 +20,9 @@ usage() {
 	  -t TOKENFILE     Path to file with token in it
 	  -K KUBE_CONFIG   Path to kube-config file for kubectl utility
 	  -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used
-	  -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked
-	  -E EXCLUDENS     Optional exclusion of Namespaces patterns as List seperated by comma. Example: -E test,^kube,^version-report$
+	  -n NAME          Optional name of the object depending on the mode being used. By default all objects will be checked
+	  -e EXCLUDE       Optional exclusion of the objects names as a list of patterms seperated by comma. Example: -e redis,^testpod
+	  -E EXCLUDENS     Optional exclusion of namespaces as a list of patterms seperated by comma. Example: -E test,^kube,^version-report$
 	  -o TIMEOUT       Timeout in seconds; default is 15
 	  -w WARN          Warning threshold for
 	                    - TLS expiration days for TLS mode; default is 30
@@ -61,7 +62,7 @@ usage() {
     exit 2
 }
 
-VERSION="v1.5.2"
+VERSION="v1.5.3"
 
 TIMEOUT=15
 unset NAME
@@ -71,7 +72,7 @@ die() {
     exit "${2:-2}"
 }
 
-while getopts ":m:M:H:T:t:K:N:n:E:o:c:w:h:v" arg; do
+while getopts ":m:M:H:T:t:K:N:n:e:E:o:c:w:h:v" arg; do
     case $arg in
         h) usage ;;
         m) MODE="$OPTARG" ;;
@@ -83,6 +84,7 @@ while getopts ":m:M:H:T:t:K:N:n:E:o:c:w:h:v" arg; do
         K) export KUBECONFIG="$OPTARG" ;;
         N) NAMESPACE="$OPTARG" ;;
         n) NAME="$OPTARG" ;;
+        e) EXCLUDE="$OPTARG" ;;
         E) EXCLUDENS="$OPTARG" ;;
         w) WARN="$OPTARG" ;;
         c) CRIT="$OPTARG" ;;
@@ -315,9 +317,8 @@ mode_tls() {
            jq -r ".items[] | select (.type==\"kubernetes.io/tls\")")
 
     if [ "$NAME" ]; then
-        namespaces=($(echo "$data" | \
-                      jq -r " select(.metadata.name==\"$NAME\") | \
-                             .metadata.namespace" | sort -u))
+        namespaces=($(echo "$data" | jq -r "select(.metadata.name==\"$NAME\") | \
+                                            .metadata.namespace" | sort -u))
     else
         namespaces=($(echo "$data" | jq -r ".metadata.namespace" | sort -u))
     fi
@@ -331,8 +332,13 @@ mode_tls() {
         if [ "$NAME" ]; then
             certs=("$NAME")
         else
-            certs=($(echo "$data" | jq -r "select(.metadata.namespace==\"$ns\") | \
-                                           .metadata.name"))
+            if [ "$EXCLUDE" ]; then
+                certs=($(echo "$data" | jq -r "select(.metadata.namespace==\"$ns\") | \
+                                               .metadata.name" | grep -vE "${EXCLUDE//,/|}"))
+            else
+                certs=($(echo "$data" | jq -r "select(.metadata.namespace==\"$ns\") | \
+                                               .metadata.name"))
+            fi
         fi
         for cert in "${certs[@]}"; do
             notafter=$(echo "$data" | \
@@ -444,14 +450,17 @@ mode_pods() {
     for ns in "${namespaces[@]}"; do
         nsdata="$(echo "$data" | jq -c -r ".items[] | select(.metadata.namespace==\"$ns\")")"
         if [ "$NAME" ]; then
-            pods=($(echo "$nsdata" | \
-                    jq -r "select(.status.reason!=\"Evicted\" \
-                                   and .metadata.labels.app==\"$NAME\") | \
-                           .metadata.name"))
+            pods=($(echo "$nsdata" | jq -r "select(.status.reason!=\"Evicted\" \
+                                            and .metadata.labels.app==\"$NAME\") | \
+                                            .metadata.name"))
         else
-            pods=($(echo "$nsdata" | \
-                    jq -r "select(.status.reason!=\"Evicted\") | \
-                           .metadata.name"))
+            if [ "$EXCLUDE" ]; then
+                pods=($(echo "$nsdata" | jq -r "select(.status.reason!=\"Evicted\") | \
+                                                .metadata.name" | grep -vE "${EXCLUDE//,/|}"))
+            else
+                pods=($(echo "$nsdata" | jq -r "select(.status.reason!=\"Evicted\") | \
+                                                .metadata.name"))
+            fi
         fi
         for pod in "${pods[@]}"; do
             containers=($(echo "$nsdata" | \
@@ -490,19 +499,17 @@ mode_pods() {
     done
 
     if [ "$EXITCODE" = 0 ]; then
-    if [ -z "$ns" ]; then
-        OUTPUT="No pods found"
-        EXITCODE="$MISSING_EXITCODE"
-    else
-             OUTPUT="OK. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
-        fi
-    else
-        if [ "$EXITCODE" = 1 ]; then
-            OUTPUT="WARNING. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
+        if [ -z "$ns" ]; then
+            OUTPUT="No pods found"
+            EXITCODE="$MISSING_EXITCODE"
         else
-            OUTPUT="ERROR. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
-            fi
+            OUTPUT="OK. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
         fi
+    elif [ "$EXITCODE" = 1 ]; then
+        OUTPUT="WARNING. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
+    else
+        OUTPUT="ERROR. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
+    fi
 }
 
 mode_deployments() {
@@ -533,7 +540,11 @@ mode_deployments() {
         if [ "$NAME" ]; then
             deps=("$NAME")
         else
-            deps=($(echo "$nsdata" | jq -r ".name"))
+            if [ "$EXCLUDE" ]; then
+                deps=($(echo "$nsdata" | jq -r ".name" | grep -vE "${EXCLUDE//,/|}"))
+            else
+                deps=($(echo "$nsdata" | jq -r ".name"))
+            fi
         fi
         for dep in "${deps[@]}"; do
             if [[ " ${availdeps[@]} " =~ " $dep " ]]; then
@@ -588,8 +599,13 @@ mode_daemonsets() {
         if [ "$NAME" ]; then
             daemonsets=("$NAME")
         else
-            daemonsets=($(echo "$data" | jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
-                                                .metadata.name"))
+            if [ "$EXCLUDE" ]; then
+                daemonsets=($(echo "$data" | jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
+                                                    .metadata.name" | grep -vE "${EXCLUDE//,/|}"))
+            else
+                daemonsets=($(echo "$data" | jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
+                                                    .metadata.name"))
+            fi
         fi
         for ds in "${daemonsets[@]}"; do
             declare -A statusArr
@@ -652,9 +668,13 @@ mode_replicasets() {
         if [ "$NAME" ]; then
             replicasets=("$NAME")
         else
-            replicasets=($(echo "$data" | \
-                           jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
-                                  .metadata.name"))
+            if [ "$EXCLUDE" ]; then
+                replicasets=($(echo "$data" | jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
+                                                     .metadata.name" | grep -vE "${EXCLUDE//,/|}"))
+            else
+                replicasets=($(echo "$data" | jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
+                                                     .metadata.name"))
+            fi
         fi
         for rs in "${replicasets[@]}"; do
             declare -A statusArr
@@ -713,9 +733,15 @@ mode_statefulsets() {
         if [ "$NAME" ]; then
             statefulsets=("$NAME")
         else
-            statefulsets=($(echo "$data" | \
-                            jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
-                                   .metadata.name"))
+            if [ "$EXCLUDE" ]; then
+                statefulsets=($(echo "$data" | \
+                                jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
+                                       .metadata.name" | grep -vE "${EXCLUDE//,/|}"))
+            else
+                statefulsets=($(echo "$data" | \
+                                jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
+                                       .metadata.name"))
+            fi
         fi
         for sts in "${statefulsets[@]}"; do
             declare -A statusArr
@@ -780,9 +806,13 @@ mode_jobs() {
         if [ "$NAME" ]; then
             jobs=("$NAME")
         else
-            jobs=($(echo "$data" | \
-                            jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
-                                   .metadata.name"))
+            if [ "$EXCLUDE" ]; then
+                jobs=($(echo "$data" | jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
+                                              .metadata.name" | grep -vE "${EXCLUDE//,/|}"))
+            else
+                jobs=($(echo "$data" | jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
+                                              .metadata.name"))
+            fi
         fi
         for job in "${jobs[@]}"; do
             ((total_jobs++))
