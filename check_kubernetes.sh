@@ -61,7 +61,7 @@ usage() {
     exit 2
 }
 
-VERSION="v1.5.0"
+VERSION="v1.5.2"
 
 TIMEOUT=15
 unset NAME
@@ -203,7 +203,7 @@ mode_nodes() {
             EXITCODE=2
             OUTPUT="${OUTPUT}Node $node not ready. "
         fi
-        for condition in OutOfDisk MemoryPressure DiskPressure; do
+        for condition in MemoryPressure DiskPressure; do
             state="$(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$node\") | \
                                            .status.conditions[] | select(.type==\"$condition\") | \
                                            .status")"
