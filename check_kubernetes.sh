@@ -21,7 +21,7 @@ usage() {
 	  -K KUBE_CONFIG   Path to kube-config file for kubectl utility
 	  -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used
 	  -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked
-      	  -E EXCLUDENS     Optional exclution of Namespaces as List seperated by comma. Example: -E dynatrace,trivy,version-report
+	  -E EXCLUDENS     Optional exclusion of Namespaces patterns as List seperated by comma. Example: -E test,^kube,^version-report$
 	  -o TIMEOUT       Timeout in seconds; default is 15
 	  -w WARN          Warning threshold for
 	                    - TLS expiration days for TLS mode; default is 30
@@ -314,16 +314,17 @@ mode_tls() {
     data=$(echo "$fulldata" | \
            jq -r ".items[] | select (.type==\"kubernetes.io/tls\")")
 
-    if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
-    elif [ "$NAME" ] && [ "$EXCLUDENS" ]; then
-        namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name!=\"$NAME\") | \
-                                            .metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}"))
-    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name!=\"$NAME\") | \
-                                            .metadata.namespace" | sort -u))
+    if [ "$NAME"]; then
+        namespaces=($(echo "$data" | \
+                      jq -r " select(.metadata.name==\"$NAME\") | \
+                             .metadata.namespace" | sort -u))
     else
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u))
+        namespaces=($(echo "$data" | jq -r ".metadata.namespace" | sort -u))
+    fi
+
+    if [ "$EXCLUDENS" ]; then
+        filtered_ns=($(printf "%s\n" "${namespaces[@]}" | grep -vE "${EXCLUDENS//,/|}"))
+        namespaces=("${filtered_ns[@]}")
     fi
 
     for ns in "${namespaces[@]}"; do
@@ -428,22 +429,16 @@ mode_pods() {
     data=$(getJSON "api/v1$api_ns/pods/")
     [ $? -gt 0 ] && die "$data"
 
-    if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
-    elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
-        namespaces=($(echo "$data" | \
-                      jq -r ".items[] | select(.metadata.labels.app==\"$NAME\") | \
-                             .metadata.namespace" | \
-                      sort -u | grep -Ev "${EXCLUDENS//,/|}"))
-    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
-        namespaces=($(echo "$data" | \
-                      jq -r ".items[] | select(.metadata.labels.app==\"$NAME\") | \
-                             .metadata.namespace" | \
-                      sort -u))
+    if [ "$NAME" ]; then
+        namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.labels.app==\"$NAME\") | \
+                                            .metadata.namespace" | sort -u))
     else
-        namespaces=($(echo "$data" | \
-                      jq -r ".items[].metadata.namespace" | \
-                      sort -u))
+        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u))
+    fi
+
+    if [ "$EXCLUDENS" ]; then
+        filtered_ns=($(printf "%s\n" "${namespaces[@]}" | grep -vE "${EXCLUDENS//,/|}"))
+        namespaces=("${filtered_ns[@]}")
     fi
 
     for ns in "${namespaces[@]}"; do
@@ -519,16 +514,16 @@ mode_deployments() {
     # deflate the data
     data="$(echo "$rawdata" | jq -r '.items[] | {name: .metadata.name, namespace: .metadata.namespace, status: .status.conditions}')"
 
-    if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
-    elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
-        namespaces=($(echo "$data" | jq -r "select(.name==\"$NAME\") | \
-                                            .namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}"))
-    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
+    if [ "$NAME" ]; then
         namespaces=($(echo "$data" | jq -r "select(.name==\"$NAME\") | \
                                             .namespace" | sort -u))
     else
         namespaces=($(echo "$data" | jq -r ".namespace" | sort -u))
+    fi
+
+    if [ "$EXCLUDENS" ]; then
+        filtered_ns=($(printf "%s\n" "${namespaces[@]}" | grep -vE "${EXCLUDENS//,/|}"))
+        namespaces=("${filtered_ns[@]}")
     fi
 
     for ns in "${namespaces[@]}"; do
@@ -577,16 +572,16 @@ mode_daemonsets() {
     data=$(getJSON "apis/apps/v1$api_ns/daemonsets/")
     [ $? -gt 0 ] && die "$data"
 
-    if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
-    elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
-        namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name!=\"$NAME\") | \
-                                            .metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}"))
-    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name!=\"$NAME\") | \
+    if [ "$NAME" ]; then
+        namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
                                             .metadata.namespace" | sort -u))
     else
         namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u))
+    fi
+
+    if [ "$EXCLUDENS" ]; then
+        filtered_ns=($(printf "%s\n" "${namespaces[@]}" | grep -vE "${EXCLUDENS//,/|}"))
+        namespaces=("${filtered_ns[@]}")
     fi
 
     for ns in "${namespaces[@]}"; do
@@ -641,20 +636,16 @@ mode_replicasets() {
     data=$(getJSON "apis/apps/v1$api_ns/replicasets/")
     [ $? -gt 0 ] && die "$data"
 
-    if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
-    elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
-        namespaces=($(echo "$data" | \
-                      jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
-                             .metadata.namespace" | \
-                      sort -u | grep -Ev "${EXCLUDENS//,/|}"))
-    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
-        namespaces=($(echo "$data" | \
-                      jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
-                             .metadata.namespace" | \
-                      sort -u))
+    if [ "$NAME" ]; then
+        namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
+                                            .metadata.namespace" | sort -u))
     else
         namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u))
+    fi
+
+    if [ "$EXCLUDENS" ]; then
+        filtered_ns=($(printf "%s\n" "${namespaces[@]}" | grep -vE "${EXCLUDENS//,/|}"))
+        namespaces=("${filtered_ns[@]}")
     fi
 
     for ns in "${namespaces[@]}"; do
@@ -706,22 +697,16 @@ mode_statefulsets() {
     data=$(getJSON "apis/apps/v1$api_ns/statefulsets/")
     [ $? -gt 0 ] && die "$data"
 
-    if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
-    elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
-        namespaces=($(echo "$data" | \
-                      jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
-                             .metadata.namespace" | \
-                      sort -u | grep -Ev "${EXCLUDENS//,/|}"))
-    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
-        namespaces=($(echo "$data" | \
-                      jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
-                             .metadata.namespace" | \
-                      sort -u))
+    if [ "$NAME" ]; then
+        namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
+                                            .metadata.namespace" | sort -u))
     else
-        namespaces=($(echo "$data" | \
-                      jq -r ".items[].metadata.namespace" | \
-                      sort -u))
+        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u))
+    fi
+
+    if [ "$EXCLUDENS" ]; then
+        filtered_ns=($(printf "%s\n" "${namespaces[@]}" | grep -vE "${EXCLUDENS//,/|}"))
+        namespaces=("${filtered_ns[@]}")
     fi
 
     for ns in "${namespaces[@]}"; do
@@ -779,22 +764,16 @@ mode_jobs() {
     data=$(getJSON "apis/batch/v1$api_ns/jobs/")
     [ $? -gt 0 ] && die "$data"
 
-    if [ "$EXCLUDENS" ] && [ -z ${NAME+x} ]; then
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u | grep -Ev "${EXCLUDENS//,/|}" ))
-    elif [ "$NAME" ] && ["$EXCLUDENS" ]; then
-        namespaces=($(echo "$data" | \
-                      jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
-                             .metadata.namespace" | \
-                      sort -u | grep -Ev "${EXCLUDENS//,/|}"))
-    elif [ "$NAME" ] && [ -z ${EXCLUDENS+x} ]; then
-        namespaces=($(echo "$data" | \
-                      jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
-                             .metadata.namespace" | \
-                      sort -u))
+    if [ "$NAME" ]; then
+        namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
+                                            .metadata.namespace" | sort -u))
     else
-        namespaces=($(echo "$data" | \
-                      jq -r ".items[].metadata.namespace" | \
-                      sort -u))
+        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u))
+    fi
+
+    if [ "$EXCLUDENS" ]; then
+        filtered_ns=($(printf "%s\n" "${namespaces[@]}" | grep -vE "${EXCLUDENS//,/|}"))
+        namespaces=("${filtered_ns[@]}")
     fi
 
     for ns in "${namespaces[@]}"; do
