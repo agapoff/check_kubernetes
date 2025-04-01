@@ -314,7 +314,7 @@ mode_tls() {
     data=$(echo "$fulldata" | \
            jq -r ".items[] | select (.type==\"kubernetes.io/tls\")")
 
-    if [ "$NAME"]; then
+    if [ "$NAME" ]; then
         namespaces=($(echo "$data" | \
                       jq -r " select(.metadata.name==\"$NAME\") | \
                              .metadata.namespace" | sort -u))
@@ -369,7 +369,7 @@ mode_tls() {
             OUTPUT="No TLS certs found"
             EXITCODE="$MISSING_EXITCODE"
         else
-            if [ $count_ok -gt 1 ]; then
+            if [ "$count_ok" -gt 1 ]; then
                 OUTPUT="OK. $count_ok TLS secrets are OK"
             else
                 OUTPUT="OK. TLS secret is OK"
@@ -489,7 +489,7 @@ mode_pods() {
         done
     done
 
-    if [ $EXITCODE = 0 ]; then
+    if [ "$EXITCODE" = 0 ]; then
     if [ -z "$ns" ]; then
         OUTPUT="No pods found"
         EXITCODE="$MISSING_EXITCODE"
@@ -497,7 +497,7 @@ mode_pods() {
              OUTPUT="OK. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
         fi
     else
-        if [ $EXITCODE = 1 ]; then
+        if [ "$EXITCODE" = 1 ]; then
             OUTPUT="WARNING. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
         else
             OUTPUT="ERROR. $count_ready pods ready, $count_succeeded pods succeeded, $count_failed pods not ready\n${OUTPUT}"
@@ -551,14 +551,14 @@ mode_deployments() {
             OUTPUT="No deployments found"
             EXITCODE="$MISSING_EXITCODE"
         else
-            if [ $count_avail -gt 1 ]; then
+            if [ "$count_avail" -gt 1 ]; then
                 OUTPUT="OK. $count_avail deployments are available"
             else
                 OUTPUT="OK. Deployment available"
             fi
         fi
     else
-        if [ $count_failed = 1 ]; then
+        if [ "$count_failed" = 1 ]; then
             OUTPUT="$OUTPUT not available"
         else
             OUTPUT="$OUTPUT and $((--count_failed)) more are not available"
@@ -611,19 +611,19 @@ mode_daemonsets() {
         done
     done
 
-    if [ $EXITCODE = 0 ]; then
+    if [ "$EXITCODE" = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No daemonsets found"
             EXITCODE="$MISSING_EXITCODE"
         else
-            if [ $count_avail -gt 1 ]; then
+            if [ "$count_avail" -gt 1 ]; then
                 OUTPUT="OK. $count_avail daemonsets are ready"
             else
                 OUTPUT="OK. $OUTPUT"
             fi
         fi
     else
-        if [ $count_failed -ne 1 ]; then
+        if [ "$count_failed" -ne 1 ]; then
             OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
         fi
     fi
@@ -673,19 +673,19 @@ mode_replicasets() {
         done
     done
 
-    if [ $EXITCODE = 0 ]; then
+    if [ "$EXITCODE" = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No replicasets found"
             EXITCODE="$MISSING_EXITCODE"
         else
-            if [ $count_avail -gt 1 ]; then
+            if [ "$count_avail" -gt 1 ]; then
                 OUTPUT="OK. $count_avail replicasets are ready"
             else
                 OUTPUT="OK. $OUTPUT"
             fi
         fi
     else
-        if [ $count_failed -ne 1 ]; then
+        if [ "$count_failed" -ne 1 ]; then
             OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
         fi
     fi
@@ -736,19 +736,19 @@ mode_statefulsets() {
         done
     done
 
-    if [ $EXITCODE = 0 ]; then
+    if [ "$EXITCODE" = 0 ]; then
         if [ -z "$ns" ]; then
             OUTPUT="No statefulsets found"
             EXITCODE="$MISSING_EXITCODE"
         else
-            if [ $count_avail -gt 1 ]; then
+            if [ "$count_avail" -gt 1 ]; then
                 OUTPUT="OK. $count_avail statefulsets are ready"
             else
                 OUTPUT="OK. $OUTPUT"
             fi
         fi
     else
-        if [ $count_failed -ne 1 ]; then
+        if [ "$count_failed" -ne 1 ]; then
             OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
         fi
     fi
