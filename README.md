@@ -48,6 +48,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	  deployments      Check for deployments availability
 	  jobs             Check for failed jobs
 	  pods             Check for restart count of containters in the pods
+	  maxpods          Check the worker podlimit value and detect high pod count on each system
 	  replicasets      Check for replicasets readiness
 	  statefulsets     Check for statefulsets readiness
 	  tls              Check for tls secrets expiration dates

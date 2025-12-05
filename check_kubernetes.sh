@@ -51,7 +51,7 @@ usage() {
 	  deployments      Check for deployments availability
 	  jobs             Check for failed jobs
 	  pods             Check for restart count of containters in the pods
-	  maxpods          Check the maxPods value and detect high pod count on each system
+	  maxpods          Check the worker podlimit value and detect high pod count on each system
 	  replicasets      Check for replicasets readiness
 	  statefulsets     Check for statefulsets readiness
 	  tls              Check for tls secrets expiration dates
@@ -62,7 +62,7 @@ usage() {
     exit 2
 }
 
-VERSION="v1.5.3"
+VERSION="v1.5.4"
 
 TIMEOUT=15
 unset NAME
