@@ -751,9 +751,9 @@ mode_statefulsets() {
                      jq -r ".items[] | select(.metadata.namespace==\"$ns\" and .metadata.name==\"$sts\") | \
                             .status | to_entries | map(\"\(.key)=\(.value)\") | .[]")
             if [ "$EXITCODE" == 0 ]; then
-                OUTPUT="Statefulset $ns/$sts ${statusArr[availableReplicas]}/${statusArr[currentReplicas]} ready\n"
+                OUTPUT="Statefulset $ns/$sts ${statusArr[readyReplicas]}/${statusArr[replicas]} ready\n"
             fi
-            if [ "${statusArr[availableReplicas]}" != "${statusArr[currentReplicas]}" ]; then
+            if [ "${statusArr[readyReplicas]}" != "${statusArr[replicas]}" ]; then
                 ((count_failed++))
                 EXITCODE=2
             else
