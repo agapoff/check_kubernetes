@@ -652,60 +652,44 @@ mode_replicasets() {
     data=$(getJSON "apis/apps/v1$api_ns/replicasets/")
     [ $? -gt 0 ] && die "$data"
 
+    # Optimize: avoid repeatedly scanning the entire JSON with jq inside loops.
+    # Extract the fields we need in a single jq pass, then process line-by-line.
     if [ "$NAME" ]; then
-        namespaces=($(echo "$data" | jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
-                                            .metadata.namespace" | sort -u))
+        processed_data=$(echo "$data" | \
+            jq -r ".items[] | select(.metadata.name==\"$NAME\") | \
+                   \"\(.metadata.namespace)|\(.metadata.name)|\(.status.readyReplicas // 0)|\(.status.availableReplicas // 0)\"")
     else
-        namespaces=($(echo "$data" | jq -r ".items[].metadata.namespace" | sort -u))
+        processed_data=$(echo "$data" | \
+            jq -r ".items[] | \
+                   \"\(.metadata.namespace)|\(.metadata.name)|\(.status.readyReplicas // 0)|\(.status.availableReplicas // 0)\"")
     fi
 
-    if [ "$EXCLUDENS" ]; then
-        filtered_ns=($(printf "%s\n" "${namespaces[@]}" | grep -vE "${EXCLUDENS//,/|}"))
-        namespaces=("${filtered_ns[@]}")
+    if [ -z "$processed_data" ]; then
+        OUTPUT="No replicasets found"
+        EXITCODE="$MISSING_EXITCODE"
+        return
     fi
 
-    for ns in "${namespaces[@]}"; do
-        if [ "$NAME" ]; then
-            replicasets=("$NAME")
+    while IFS='|' read -r ns rs ready available; do
+        OUTPUT="Replicaset $ns/$rs ${ready}/${available} ready"
+        if [ "$ready" != "$available" ]; then
+            ((count_failed++))
+            EXITCODE=2
         else
-            if [ "$EXCLUDE" ]; then
-                replicasets=($(echo "$data" | jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
-                                                     .metadata.name" | grep -vE "${EXCLUDE//,/|}"))
-            else
-                replicasets=($(echo "$data" | jq -r ".items[] | select(.metadata.namespace==\"$ns\") | \
-                                                     .metadata.name"))
-            fi
+            ((count_avail++))
         fi
-        for rs in "${replicasets[@]}"; do
-            declare -A statusArr
-            while IFS="=" read -r key value; do
-               statusArr[$key]="$value"
-            done < <(echo "$data" | \
-                     jq -r ".items[] | select(.metadata.namespace==\"$ns\" and .metadata.name==\"$rs\") | \
-                            .status | to_entries | map(\"\(.key)=\(.value)\") | .[]")
-            OUTPUT="Replicaset $ns/$rs ${statusArr[readyReplicas]}/${statusArr[availableReplicas]} ready"
-            if [ "${statusArr[readyReplicas]}" != "${statusArr[availableReplicas]}" ]; then
-                ((count_failed++))
-                EXITCODE=2
-            else
-                ((count_avail++))
-            fi
-        done
-    done
+    done <<< "$processed_data"
 
-    if [ "$EXITCODE" = 0 ]; then
-        if [ -z "$ns" ]; then
-            OUTPUT="No replicasets found"
-            EXITCODE="$MISSING_EXITCODE"
+    if [ $EXITCODE = 0 ]; then
+        if [ $count_avail -gt 1 ]; then
+            OUTPUT="OK. $count_avail replicasets are ready"
         else
-            if [ "$count_avail" -gt 1 ]; then
-                OUTPUT="OK. $count_avail replicasets are ready"
-            else
-                OUTPUT="OK. $OUTPUT"
-            fi
+            OUTPUT="OK. $OUTPUT"
         fi
     else
-        if [ "$count_failed" -ne 1 ]; then
+        if [ $count_failed = 1 ]; then
+            OUTPUT="$OUTPUT"
+        else
             OUTPUT="${OUTPUT}. $((--count_failed)) more are not ready"
         fi
     fi
