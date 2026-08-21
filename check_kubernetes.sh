@@ -11,7 +11,7 @@
 usage() {
     cat <<- EOF
 	Usage $0 [-m <MODE>|-h] [-o <TIMEOUT>] [-H <APISERVER> [-T <TOKEN>|-t <TOKENFILE>]] [-K <KUBE_CONFIG>]
-	         [-N <NAMESPACE>] [-n <NAME>] [-r <EXCLUDE>] [-E <EXCLUDENS>] [-w <WARN>] [-c <CRIT>] [-v]
+	         [-N <NAMESPACE>] [-n <NAME>] [-r <EXCLUDE>] [-E <EXCLUDENS>] [-w <WARN>] [-c <CRIT>] [-x <CONTEXT>] [-v]
 
 	Options are:
 	  -m MODE          Which check to perform
@@ -40,6 +40,7 @@ usage() {
 	                    - Pvc storage utilization; default is 90%
 	                    - API cert expiration days for apicert mode; default is 15
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
+      -x CONTEXT       Context to use when kubeconfig contains more than 1 cluster
 	  -v               Show current Version
 	  -h               Show this help and exit
 
@@ -72,7 +73,7 @@ die() {
     exit "${2:-2}"
 }
 
-while getopts ":m:M:H:T:t:K:N:n:e:E:o:c:w:h:v" arg; do
+while getopts ":m:M:H:T:t:K:N:n:e:E:o:c:w:x:h:v" arg; do
     case $arg in
         h) usage ;;
         m) MODE="$OPTARG" ;;
@@ -88,6 +89,7 @@ while getopts ":m:M:H:T:t:K:N:n:e:E:o:c:w:h:v" arg; do
         E) EXCLUDENS="$OPTARG" ;;
         w) WARN="$OPTARG" ;;
         c) CRIT="$OPTARG" ;;
+        x) CONTEXT="$OPTARG" ;;
         v) echo "check_kubernetes.sh Version: $VERSION" && exit 0 ;;
         *) usage ;;
     esac
@@ -128,7 +130,11 @@ getJSON() {
             die "Could not access API"
         fi
     else
-        data=$(eval timeout "$TIMEOUT" kubectl get --raw "/$api_path" 2>&1)
+        contextstr=""
+        if [ "$CONTEXT" != "" ];then
+            contextstr="--context $CONTEXT"
+        fi
+        data=$(eval timeout "$TIMEOUT" kubectl get $contextstr --raw "/$api_path" 2>&1)
         code=$?
         if [ $code -gt 0 ]; then
             if [ $code = 124 ]; then
