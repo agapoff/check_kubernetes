@@ -19,6 +19,7 @@ Nagios-style checks against Kubernetes API. Designed for usage with Nagios, Icin
 	  -T TOKEN         Authorization token for API
 	  -t TOKENFILE     Path to file with token in it
 	  -K KUBE_CONFIG   Path to kube-config file for kubectl utility
+	  -x CONTEXT       Context to use when kubeconfig contains more than 1 cluster
 	  -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used
 	  -n NAME          Optional deployment name or pod app label depending on the mode being used. By default all objects will be checked
 	  -e EXCLUDE       Optional exclusion of the objects names as a list of patterms seperated by comma. Example: -e redis,^testpod

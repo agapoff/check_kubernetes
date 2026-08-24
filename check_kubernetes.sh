@@ -19,6 +19,7 @@ usage() {
 	  -T TOKEN         Authorization token for API
 	  -t TOKENFILE     Path to file with token in it
 	  -K KUBE_CONFIG   Path to kube-config file for kubectl utility
+	  -x CONTEXT       Context to use when kubeconfig contains more than 1 cluster
 	  -N NAMESPACE     Optional namespace for some modes. By default all namespaces will be used
 	  -n NAME          Optional name of the object depending on the mode being used. By default all objects will be checked
 	  -e EXCLUDE       Optional exclusion of the objects names as a list of patterms seperated by comma. Example: -e redis,^testpod
@@ -40,7 +41,6 @@ usage() {
 	                    - Pvc storage utilization; default is 90%
 	                    - API cert expiration days for apicert mode; default is 15
 	  -M EXIT_CODE     Exit code when resource is missing; default is 2 (CRITICAL)
-      -x CONTEXT       Context to use when kubeconfig contains more than 1 cluster
 	  -v               Show current Version
 	  -h               Show this help and exit
 
@@ -63,7 +63,7 @@ usage() {
     exit 2
 }
 
-VERSION="v1.5.4"
+VERSION="v1.5.5"
 
 TIMEOUT=15
 unset NAME
@@ -130,11 +130,11 @@ getJSON() {
             die "Could not access API"
         fi
     else
-        contextstr=""
-        if [ "$CONTEXT" != "" ];then
-            contextstr="--context $CONTEXT"
+        context_args=()
+        if [ -n "$CONTEXT" ]; then
+            context_args=(--context "$CONTEXT")
         fi
-        data=$(eval timeout "$TIMEOUT" kubectl get $contextstr --raw "/$api_path" 2>&1)
+        data=$(eval timeout "$TIMEOUT" kubectl "${context_args[@]}" get --raw "/$api_path" 2>&1)
         code=$?
         if [ $code -gt 0 ]; then
             if [ $code = 124 ]; then
